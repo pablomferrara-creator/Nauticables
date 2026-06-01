@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import type { OrderStatus, ProductKind, UserRole } from "../domain/models";
+import type {
+  CashCurrency,
+  CashMovementType,
+  OrderStatus,
+  ProductKind,
+  UserRole,
+} from "../domain/models";
 
-const STORAGE_KEY = "nauticables-local-prototype-v2";
+const STORAGE_KEY = "nauticables-local-prototype-v3";
 
 export interface AppUser {
   id: string;
@@ -60,12 +66,66 @@ export interface AppOrder {
   productionEntries: AppProductionEntry[];
 }
 
+export interface AppCashAccount {
+  id: string;
+  name: string;
+  currency: CashCurrency;
+}
+
+export interface AppCashMovement {
+  id: string;
+  cashAccountId: string;
+  movementDate: string;
+  type: CashMovementType;
+  category: string;
+  concept: string;
+  amount: number;
+  currency: CashCurrency;
+  createdAt: string;
+  createdByUserId: string;
+  createdByName: string;
+  linkedEntityType?: "receivable" | "payable" | "wage_batch" | "order";
+  linkedEntityId?: string;
+}
+
+export interface AppReceivable {
+  id: string;
+  shipyardId: string;
+  concept: string;
+  originDate: string;
+  dueDate: string;
+  currency: CashCurrency;
+  totalAmount: number;
+  collectedAmount: number;
+  createdAt: string;
+  createdByUserId: string;
+  createdByName: string;
+}
+
+export interface AppPayable {
+  id: string;
+  supplierName: string;
+  concept: string;
+  originDate: string;
+  dueDate: string;
+  currency: CashCurrency;
+  totalAmount: number;
+  paidAmount: number;
+  createdAt: string;
+  createdByUserId: string;
+  createdByName: string;
+}
+
 export interface AppState {
   activeUserId: string | null;
   users: AppUser[];
   shipyards: AppShipyard[];
   products: AppProduct[];
   orders: AppOrder[];
+  cashAccounts: AppCashAccount[];
+  cashMovements: AppCashMovement[];
+  receivables: AppReceivable[];
+  payables: AppPayable[];
 }
 
 export interface CreateOrderInput {
@@ -91,6 +151,43 @@ export interface DeliveryInput {
   orderId: string;
   orderItemId: string;
   quantity: number;
+}
+
+export interface CreateCashMovementInput {
+  cashAccountId: string;
+  movementDate: string;
+  type: CashMovementType;
+  category: string;
+  concept: string;
+  amount: number;
+}
+
+export interface CreateReceivableInput {
+  shipyardId: string;
+  concept: string;
+  originDate: string;
+  dueDate: string;
+  currency: CashCurrency;
+  totalAmount: number;
+}
+
+export interface CreatePayableInput {
+  supplierName: string;
+  concept: string;
+  originDate: string;
+  dueDate: string;
+  currency: CashCurrency;
+  totalAmount: number;
+}
+
+export interface SettleReceivableInput {
+  receivableId: string;
+  amount: number;
+}
+
+export interface SettlePayableInput {
+  payableId: string;
+  amount: number;
 }
 
 const seedState: AppState = {
@@ -184,7 +281,12 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 410000,
       family: "Vision",
-      recipeSummary: ["Bornera", "Empalmes", "Subcables", "Control de calidad"],
+      recipeSummary: [
+        "Bornera",
+        "Empalmes",
+        "Subcables",
+        "Control de calidad",
+      ],
     },
     {
       id: "pr-v150",
@@ -193,7 +295,12 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 265000,
       family: "Vision",
-      recipeSummary: ["Base compacta", "Tablero", "Terminales", "Prueba final"],
+      recipeSummary: [
+        "Base compacta",
+        "Tablero",
+        "Terminales",
+        "Prueba final",
+      ],
     },
   ],
   orders: deriveOrders([
@@ -294,6 +401,107 @@ const seedState: AppState = {
       ],
     },
   ]),
+  cashAccounts: [
+    { id: "ca-ars", name: "Caja ARS", currency: "ARS" },
+    { id: "ca-usd", name: "Caja USD", currency: "USD" },
+  ],
+  cashMovements: [
+    {
+      id: "cm-001",
+      cashAccountId: "ca-ars",
+      movementDate: "2026-05-24",
+      type: "ingreso",
+      category: "Cobro",
+      concept: "Entrega Canestrari",
+      amount: 5226000,
+      currency: "ARS",
+      createdAt: "2026-05-24T15:30:00.000Z",
+      createdByUserId: "u-admin-pablo",
+      createdByName: "Pablo",
+    },
+    {
+      id: "cm-002",
+      cashAccountId: "ca-ars",
+      movementDate: "2026-05-28",
+      type: "egreso",
+      category: "Materiales",
+      concept: "Compra materiales Janored",
+      amount: 575142,
+      currency: "ARS",
+      createdAt: "2026-05-28T17:00:00.000Z",
+      createdByUserId: "u-admin-socio",
+      createdByName: "Socio",
+    },
+    {
+      id: "cm-003",
+      cashAccountId: "ca-ars",
+      movementDate: "2026-05-29",
+      type: "egreso",
+      category: "Sueldos",
+      concept: "Pago MO semanal",
+      amount: 117000,
+      currency: "ARS",
+      createdAt: "2026-05-29T18:20:00.000Z",
+      createdByUserId: "u-admin-pablo",
+      createdByName: "Pablo",
+    },
+    {
+      id: "cm-004",
+      cashAccountId: "ca-usd",
+      movementDate: "2026-05-20",
+      type: "ingreso",
+      category: "Ahorro",
+      concept: "Reserva para futuras compras",
+      amount: 1850,
+      currency: "USD",
+      createdAt: "2026-05-20T12:00:00.000Z",
+      createdByUserId: "u-admin-pablo",
+      createdByName: "Pablo",
+    },
+  ],
+  receivables: [
+    {
+      id: "rc-001",
+      shipyardId: "sy-canestrari",
+      concept: "Saldo pendiente entrega mayo",
+      originDate: "2026-05-22",
+      dueDate: "2026-06-05",
+      currency: "ARS",
+      totalAmount: 3445000,
+      collectedAmount: 0,
+      createdAt: "2026-05-22T10:00:00.000Z",
+      createdByUserId: "u-admin-pablo",
+      createdByName: "Pablo",
+    },
+    {
+      id: "rc-002",
+      shipyardId: "sy-vision",
+      concept: "Entrega Vision pendiente",
+      originDate: "2026-05-28",
+      dueDate: "2026-06-04",
+      currency: "ARS",
+      totalAmount: 590000,
+      collectedAmount: 0,
+      createdAt: "2026-05-28T13:00:00.000Z",
+      createdByUserId: "u-admin-socio",
+      createdByName: "Socio",
+    },
+  ],
+  payables: [
+    {
+      id: "py-001",
+      supplierName: "Janored",
+      concept: "Materiales mayo",
+      originDate: "2026-05-28",
+      dueDate: "2026-06-03",
+      currency: "ARS",
+      totalAmount: 1170000,
+      paidAmount: 575142,
+      createdAt: "2026-05-28T17:05:00.000Z",
+      createdByUserId: "u-admin-pablo",
+      createdByName: "Pablo",
+    },
+  ],
 };
 
 function deriveStatus(items: AppOrderItem[]): OrderStatus {
@@ -338,14 +546,32 @@ function loadState(): AppState {
   }
 
   try {
-    const parsed = JSON.parse(raw) as AppState;
+    const parsed = JSON.parse(raw) as Partial<AppState>;
     return {
-      ...parsed,
-      orders: deriveOrders(parsed.orders),
+      activeUserId: parsed.activeUserId ?? null,
+      users: parsed.users ?? seedState.users,
+      shipyards: parsed.shipyards ?? seedState.shipyards,
+      products: parsed.products ?? seedState.products,
+      orders: deriveOrders(parsed.orders ?? seedState.orders),
+      cashAccounts: parsed.cashAccounts ?? seedState.cashAccounts,
+      cashMovements: parsed.cashMovements ?? seedState.cashMovements,
+      receivables: parsed.receivables ?? seedState.receivables,
+      payables: parsed.payables ?? seedState.payables,
     };
   } catch {
     return seedState;
   }
+}
+
+function matchingCashAccountId(
+  accounts: AppCashAccount[],
+  currency: CashCurrency,
+) {
+  return (
+    accounts.find((account) => account.currency === currency)?.id ??
+    accounts[0]?.id ??
+    ""
+  );
 }
 
 export function useAppState() {
@@ -485,6 +711,203 @@ export function useAppState() {
     }));
   }
 
+  function createCashMovement(input: CreateCashMovementInput, user: AppUser) {
+    if (input.amount <= 0) {
+      return;
+    }
+
+    setState((current) => {
+      const account = current.cashAccounts.find(
+        (cashAccount) => cashAccount.id === input.cashAccountId,
+      );
+      if (!account) {
+        return current;
+      }
+
+      const nextMovement: AppCashMovement = {
+        id: crypto.randomUUID(),
+        cashAccountId: input.cashAccountId,
+        movementDate: input.movementDate,
+        type: input.type,
+        category: input.category.trim(),
+        concept: input.concept.trim(),
+        amount: input.amount,
+        currency: account.currency,
+        createdAt: new Date().toISOString(),
+        createdByUserId: user.id,
+        createdByName: user.name,
+      };
+
+      return {
+        ...current,
+        cashMovements: [nextMovement, ...current.cashMovements],
+      };
+    });
+  }
+
+  function createReceivable(input: CreateReceivableInput, user: AppUser) {
+    if (input.totalAmount <= 0) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      receivables: [
+        {
+          id: crypto.randomUUID(),
+          shipyardId: input.shipyardId,
+          concept: input.concept.trim(),
+          originDate: input.originDate,
+          dueDate: input.dueDate,
+          currency: input.currency,
+          totalAmount: input.totalAmount,
+          collectedAmount: 0,
+          createdAt: new Date().toISOString(),
+          createdByUserId: user.id,
+          createdByName: user.name,
+        },
+        ...current.receivables,
+      ],
+    }));
+  }
+
+  function createPayable(input: CreatePayableInput, user: AppUser) {
+    if (input.totalAmount <= 0) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      payables: [
+        {
+          id: crypto.randomUUID(),
+          supplierName: input.supplierName.trim(),
+          concept: input.concept.trim(),
+          originDate: input.originDate,
+          dueDate: input.dueDate,
+          currency: input.currency,
+          totalAmount: input.totalAmount,
+          paidAmount: 0,
+          createdAt: new Date().toISOString(),
+          createdByUserId: user.id,
+          createdByName: user.name,
+        },
+        ...current.payables,
+      ],
+    }));
+  }
+
+  function settleReceivable(input: SettleReceivableInput, user: AppUser) {
+    if (input.amount <= 0) {
+      return;
+    }
+
+    setState((current) => {
+      let createdMovement: AppCashMovement | null = null;
+
+      const receivables = current.receivables.map((receivable) => {
+        if (receivable.id !== input.receivableId) {
+          return receivable;
+        }
+
+        const remaining =
+          receivable.totalAmount - receivable.collectedAmount;
+        const appliedAmount = Math.min(input.amount, Math.max(0, remaining));
+        if (appliedAmount <= 0) {
+          return receivable;
+        }
+
+        const cashAccountId = matchingCashAccountId(
+          current.cashAccounts,
+          receivable.currency,
+        );
+        createdMovement = {
+          id: crypto.randomUUID(),
+          cashAccountId,
+          movementDate: new Date().toISOString().slice(0, 10),
+          type: "ingreso",
+          category: "Cobro",
+          concept: `Cobro: ${receivable.concept}`,
+          amount: appliedAmount,
+          currency: receivable.currency,
+          createdAt: new Date().toISOString(),
+          createdByUserId: user.id,
+          createdByName: user.name,
+          linkedEntityType: "receivable",
+          linkedEntityId: receivable.id,
+        };
+
+        return {
+          ...receivable,
+          collectedAmount: receivable.collectedAmount + appliedAmount,
+        };
+      });
+
+      return {
+        ...current,
+        receivables,
+        cashMovements: createdMovement
+          ? [createdMovement, ...current.cashMovements]
+          : current.cashMovements,
+      };
+    });
+  }
+
+  function settlePayable(input: SettlePayableInput, user: AppUser) {
+    if (input.amount <= 0) {
+      return;
+    }
+
+    setState((current) => {
+      let createdMovement: AppCashMovement | null = null;
+
+      const payables = current.payables.map((payable) => {
+        if (payable.id !== input.payableId) {
+          return payable;
+        }
+
+        const remaining = payable.totalAmount - payable.paidAmount;
+        const appliedAmount = Math.min(input.amount, Math.max(0, remaining));
+        if (appliedAmount <= 0) {
+          return payable;
+        }
+
+        const cashAccountId = matchingCashAccountId(
+          current.cashAccounts,
+          payable.currency,
+        );
+        createdMovement = {
+          id: crypto.randomUUID(),
+          cashAccountId,
+          movementDate: new Date().toISOString().slice(0, 10),
+          type: "egreso",
+          category: "Pago proveedor",
+          concept: `Pago: ${payable.supplierName} / ${payable.concept}`,
+          amount: appliedAmount,
+          currency: payable.currency,
+          createdAt: new Date().toISOString(),
+          createdByUserId: user.id,
+          createdByName: user.name,
+          linkedEntityType: "payable",
+          linkedEntityId: payable.id,
+        };
+
+        return {
+          ...payable,
+          paidAmount: payable.paidAmount + appliedAmount,
+        };
+      });
+
+      return {
+        ...current,
+        payables,
+        cashMovements: createdMovement
+          ? [createdMovement, ...current.cashMovements]
+          : current.cashMovements,
+      };
+    });
+  }
+
   const currentUser =
     state.users.find((user) => user.id === state.activeUserId) ?? null;
 
@@ -496,5 +919,10 @@ export function useAppState() {
     createOrder,
     recordProduction,
     recordDelivery,
+    createCashMovement,
+    createReceivable,
+    createPayable,
+    settleReceivable,
+    settlePayable,
   };
 }

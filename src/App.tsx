@@ -7,16 +7,31 @@ import {
 } from "react";
 import {
   useAppState,
+  type AppCashAccount,
+  type AppCashMovement,
   type AppOrder,
+  type AppPayable,
   type AppProduct,
+  type AppReceivable,
   type AppShipyard,
   type AppUser,
+  type CreateCashMovementInput,
   type CreateOrderInput,
+  type CreatePayableInput,
+  type CreateReceivableInput,
   type DeliveryInput,
   type ProductionInput,
+  type SettlePayableInput,
+  type SettleReceivableInput,
 } from "./data/appStore";
 
-type TabId = "resumen" | "pedidos" | "produccion" | "productos" | "astilleros";
+type TabId =
+  | "resumen"
+  | "pedidos"
+  | "caja"
+  | "produccion"
+  | "productos"
+  | "astilleros";
 
 interface TabOption {
   id: TabId;
@@ -26,6 +41,7 @@ interface TabOption {
 const adminTabs: TabOption[] = [
   { id: "resumen", label: "Resumen" },
   { id: "pedidos", label: "Pedidos" },
+  { id: "caja", label: "Caja" },
   { id: "productos", label: "Productos" },
   { id: "astilleros", label: "Astilleros" },
 ];
@@ -35,7 +51,7 @@ const operatorTabs: TabOption[] = [
   { id: "productos", label: "Catalogo" },
 ];
 
-const currency = new Intl.NumberFormat("es-AR", {
+const arsCurrency = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
   maximumFractionDigits: 0,
@@ -50,6 +66,11 @@ function App() {
     createOrder,
     recordProduction,
     recordDelivery,
+    createCashMovement,
+    createReceivable,
+    createPayable,
+    settleReceivable,
+    settlePayable,
   } = useAppState();
   const [activeTab, setActiveTab] = useState<TabId>("resumen");
 
@@ -58,7 +79,8 @@ function App() {
       return;
     }
 
-    const availableTabs = currentUser.role === "admin" ? adminTabs : operatorTabs;
+    const availableTabs =
+      currentUser.role === "admin" ? adminTabs : operatorTabs;
     if (availableTabs.some((tab) => tab.id === activeTab)) {
       return;
     }
@@ -78,6 +100,9 @@ function App() {
   const shipyardsById = Object.fromEntries(
     state.shipyards.map((shipyard) => [shipyard.id, shipyard]),
   ) as Record<string, AppShipyard>;
+  const cashAccountsById = Object.fromEntries(
+    state.cashAccounts.map((cashAccount) => [cashAccount.id, cashAccount]),
+  ) as Record<string, AppCashAccount>;
   const orders = [...state.orders].sort((left, right) =>
     left.deliveryDueAt.localeCompare(right.deliveryDueAt),
   );
@@ -123,6 +148,8 @@ function App() {
             shipyards={state.shipyards}
             productsById={productsById}
             shipyardsById={shipyardsById}
+            receivables={state.receivables}
+            payables={state.payables}
           />
         ) : null}
 
@@ -137,6 +164,23 @@ function App() {
             onCreateOrder={createOrder}
             onRecordProduction={recordProduction}
             onRecordDelivery={recordDelivery}
+          />
+        ) : null}
+
+        {activeTab === "caja" && currentUser.role === "admin" ? (
+          <CashPanel
+            cashAccounts={state.cashAccounts}
+            cashAccountsById={cashAccountsById}
+            cashMovements={state.cashMovements}
+            currentUser={currentUser}
+            payables={state.payables}
+            receivables={state.receivables}
+            shipyards={state.shipyards}
+            onCreateCashMovement={createCashMovement}
+            onCreatePayable={createPayable}
+            onCreateReceivable={createReceivable}
+            onSettlePayable={settlePayable}
+            onSettleReceivable={settleReceivable}
           />
         ) : null}
 
@@ -223,19 +267,20 @@ function OverviewPanel({
   shipyards,
   productsById,
   shipyardsById,
+  receivables,
+  payables,
 }: {
   orders: AppOrder[];
   products: AppProduct[];
   shipyards: AppShipyard[];
   productsById: Record<string, AppProduct>;
   shipyardsById: Record<string, AppShipyard>;
+  receivables: AppReceivable[];
+  payables: AppPayable[];
 }) {
   const pendingOrders = orders.filter((order) =>
     ["pendiente", "en_produccion", "parcial"].includes(order.status),
   );
-  const completedToday = orders.filter(
-    (order) => order.status === "terminado",
-  ).length;
   const openDeliveries = orders.filter(
     (order) => order.status !== "entregado",
   ).length;
@@ -248,6 +293,14 @@ function OverviewPanel({
       }, 0)
     );
   }, 0);
+  const pendingReceivables = receivables.reduce(
+    (sum, receivable) => sum + pendingAmount(receivable.totalAmount, receivable.collectedAmount),
+    0,
+  );
+  const pendingPayables = payables.reduce(
+    (sum, payable) => sum + pendingAmount(payable.totalAmount, payable.paidAmount),
+    0,
+  );
 
   return (
     <section className="panel">
@@ -257,8 +310,8 @@ function OverviewPanel({
           <h2>Lo importante antes de abrir la planilla</h2>
         </div>
         <div className="notice">
-          La caja y la cobranzas reales quedan para la siguiente pantalla. Hoy
-          ya estamos validando flujo de pedidos y produccion.
+          Ya podes probar pedidos, produccion y ahora tambien caja basica,
+          pendientes de cobro y de pago.
         </div>
       </div>
 
@@ -274,14 +327,14 @@ function OverviewPanel({
           hint="Prioridad para el taller"
         />
         <StatCard
-          label="Productos catalogados"
-          value={String(products.length)}
-          hint="Completos y subcables"
+          label="Cobros pendientes"
+          value={arsCurrency.format(pendingReceivables)}
+          hint="Para seguir la calle y el cierre"
         />
         <StatCard
-          label="Facturacion potencial"
-          value={currency.format(monthlyProjection)}
-          hint="Base de los pedidos cargados"
+          label="Pagos pendientes"
+          value={arsCurrency.format(pendingPayables)}
+          hint="Proveedor y otros compromisos"
         />
       </div>
 
@@ -329,8 +382,8 @@ function OverviewPanel({
             ))}
           </div>
           <div className="card__footer">
-            <strong>{completedToday}</strong>
-            <span>pedidos ya estan listos para pasar a entrega completa</span>
+            <strong>{arsCurrency.format(monthlyProjection)}</strong>
+            <span>facturacion potencial estimada con lo ya cargado</span>
           </div>
         </article>
       </div>
@@ -416,6 +469,644 @@ function OrdersPanel({
             ))}
           </div>
         </article>
+      </div>
+    </section>
+  );
+}
+
+function CashPanel({
+  cashAccounts,
+  cashAccountsById,
+  cashMovements,
+  currentUser,
+  payables,
+  receivables,
+  shipyards,
+  onCreateCashMovement,
+  onCreatePayable,
+  onCreateReceivable,
+  onSettlePayable,
+  onSettleReceivable,
+}: {
+  cashAccounts: AppCashAccount[];
+  cashAccountsById: Record<string, AppCashAccount>;
+  cashMovements: AppCashMovement[];
+  currentUser: AppUser;
+  payables: AppPayable[];
+  receivables: AppReceivable[];
+  shipyards: AppShipyard[];
+  onCreateCashMovement: (input: CreateCashMovementInput, user: AppUser) => void;
+  onCreatePayable: (input: CreatePayableInput, user: AppUser) => void;
+  onCreateReceivable: (input: CreateReceivableInput, user: AppUser) => void;
+  onSettlePayable: (input: SettlePayableInput, user: AppUser) => void;
+  onSettleReceivable: (input: SettleReceivableInput, user: AppUser) => void;
+}) {
+  const [movementInput, setMovementInput] = useState<CreateCashMovementInput>({
+    cashAccountId: cashAccounts[0]?.id ?? "",
+    movementDate: todayIso(),
+    type: "egreso",
+    category: "Gasto",
+    concept: "",
+    amount: 0,
+  });
+  const [receivableInput, setReceivableInput] = useState<CreateReceivableInput>({
+    shipyardId: shipyards[0]?.id ?? "",
+    concept: "",
+    originDate: todayIso(),
+    dueDate: daysFromToday(7),
+    currency: "ARS",
+    totalAmount: 0,
+  });
+  const [payableInput, setPayableInput] = useState<CreatePayableInput>({
+    supplierName: "Janored",
+    concept: "",
+    originDate: todayIso(),
+    dueDate: daysFromToday(7),
+    currency: "ARS",
+    totalAmount: 0,
+  });
+  const [settlementDrafts, setSettlementDrafts] = useState<
+    Record<string, number>
+  >({});
+
+  const accountBalances = cashAccounts.map((account) => ({
+    ...account,
+    balance: calculateCashBalance(account.id, cashMovements),
+  }));
+  const recentMovements = [...cashMovements].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt),
+  );
+  const openReceivables = receivables.filter(
+    (receivable) => pendingAmount(receivable.totalAmount, receivable.collectedAmount) > 0,
+  );
+  const openPayables = payables.filter(
+    (payable) => pendingAmount(payable.totalAmount, payable.paidAmount) > 0,
+  );
+  const receivablesArs = openReceivables
+    .filter((receivable) => receivable.currency === "ARS")
+    .reduce(
+      (sum, receivable) =>
+        sum + pendingAmount(receivable.totalAmount, receivable.collectedAmount),
+      0,
+    );
+  const payablesArs = openPayables
+    .filter((payable) => payable.currency === "ARS")
+    .reduce(
+      (sum, payable) => sum + pendingAmount(payable.totalAmount, payable.paidAmount),
+      0,
+    );
+
+  function draftFor(id: string, defaultAmount: number) {
+    return settlementDrafts[id] ?? defaultAmount;
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel__header">
+        <div>
+          <span className="section-kicker">Caja</span>
+          <h2>Cierre basico, cobros y pagos sin ir al sheet</h2>
+        </div>
+        <div className="notice">
+          Esto ya te permite probar el flujo que mas tiempo te consume hoy:
+          movimientos, cuentas pendientes y caja separada en ARS/USD.
+        </div>
+      </div>
+
+      <div className="stats-grid">
+        {accountBalances.map((account) => (
+          <StatCard
+            key={account.id}
+            label={account.name}
+            value={formatCurrency(account.balance, account.currency)}
+            hint={`Saldo actual en ${account.currency}`}
+          />
+        ))}
+        <StatCard
+          label="Cobros pendientes"
+          value={arsCurrency.format(receivablesArs)}
+          hint="Pendientes en ARS para salir a cobrar"
+        />
+        <StatCard
+          label="Pagos pendientes"
+          value={arsCurrency.format(payablesArs)}
+          hint="Compromisos abiertos en ARS"
+        />
+      </div>
+
+      <div className="split-grid split-grid--wide">
+        <div className="stack">
+          <form
+            className="card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onCreateCashMovement(movementInput, currentUser);
+              setMovementInput((current) => ({
+                ...current,
+                concept: "",
+                amount: 0,
+                movementDate: todayIso(),
+              }));
+            }}
+          >
+            <div className="card__heading">
+              <h3>Registrar movimiento</h3>
+              <p>Ingresos, egresos o extracciones en la caja correcta.</p>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                <span>Caja</span>
+                <select
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      cashAccountId: event.target.value,
+                    }))
+                  }
+                  value={movementInput.cashAccountId}
+                >
+                  {cashAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Tipo</span>
+                <select
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      type: event.target.value as CreateCashMovementInput["type"],
+                    }))
+                  }
+                  value={movementInput.type}
+                >
+                  <option value="ingreso">Ingreso</option>
+                  <option value="egreso">Egreso</option>
+                  <option value="extraccion">Extraccion</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Fecha</span>
+                <input
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      movementDate: event.target.value,
+                    }))
+                  }
+                  type="date"
+                  value={movementInput.movementDate}
+                />
+              </label>
+
+              <label>
+                <span>Categoria</span>
+                <input
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      category: event.target.value,
+                    }))
+                  }
+                  placeholder="Sueldos, materiales, cobro..."
+                  value={movementInput.category}
+                />
+              </label>
+
+              <label className="field-span-2">
+                <span>Concepto</span>
+                <input
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      concept: event.target.value,
+                    }))
+                  }
+                  placeholder="Detalle corto del movimiento"
+                  value={movementInput.concept}
+                />
+              </label>
+
+              <label>
+                <span>Monto</span>
+                <input
+                  min="0"
+                  onChange={(event) =>
+                    setMovementInput((current) => ({
+                      ...current,
+                      amount: Number(event.target.value),
+                    }))
+                  }
+                  type="number"
+                  value={movementInput.amount || ""}
+                />
+              </label>
+            </div>
+
+            <button className="button button--primary" type="submit">
+              Guardar movimiento
+            </button>
+          </form>
+
+          <form
+            className="card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onCreateReceivable(receivableInput, currentUser);
+              setReceivableInput((current) => ({
+                ...current,
+                concept: "",
+                totalAmount: 0,
+                originDate: todayIso(),
+                dueDate: daysFromToday(7),
+              }));
+            }}
+          >
+            <div className="card__heading">
+              <h3>Cargar cuenta a cobrar</h3>
+              <p>Para seguir cobros sin depender del balance manual.</p>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                <span>Astillero</span>
+                <select
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      shipyardId: event.target.value,
+                    }))
+                  }
+                  value={receivableInput.shipyardId}
+                >
+                  {shipyards.map((shipyard) => (
+                    <option key={shipyard.id} value={shipyard.id}>
+                      {shipyard.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Moneda</span>
+                <select
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      currency: event.target.value as CreateReceivableInput["currency"],
+                    }))
+                  }
+                  value={receivableInput.currency}
+                >
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Origen</span>
+                <input
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      originDate: event.target.value,
+                    }))
+                  }
+                  type="date"
+                  value={receivableInput.originDate}
+                />
+              </label>
+
+              <label>
+                <span>Vencimiento</span>
+                <input
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      dueDate: event.target.value,
+                    }))
+                  }
+                  type="date"
+                  value={receivableInput.dueDate}
+                />
+              </label>
+
+              <label className="field-span-2">
+                <span>Concepto</span>
+                <input
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      concept: event.target.value,
+                    }))
+                  }
+                  placeholder="Entrega, saldo de factura, remito..."
+                  value={receivableInput.concept}
+                />
+              </label>
+
+              <label>
+                <span>Monto total</span>
+                <input
+                  min="0"
+                  onChange={(event) =>
+                    setReceivableInput((current) => ({
+                      ...current,
+                      totalAmount: Number(event.target.value),
+                    }))
+                  }
+                  type="number"
+                  value={receivableInput.totalAmount || ""}
+                />
+              </label>
+            </div>
+
+            <button className="button button--primary" type="submit">
+              Guardar cuenta a cobrar
+            </button>
+          </form>
+
+          <form
+            className="card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onCreatePayable(payableInput, currentUser);
+              setPayableInput((current) => ({
+                ...current,
+                concept: "",
+                totalAmount: 0,
+                originDate: todayIso(),
+                dueDate: daysFromToday(7),
+              }));
+            }}
+          >
+            <div className="card__heading">
+              <h3>Cargar cuenta a pagar</h3>
+              <p>Proveedor, gasto grande o retiro pendiente.</p>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                <span>Proveedor / nombre</span>
+                <input
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      supplierName: event.target.value,
+                    }))
+                  }
+                  value={payableInput.supplierName}
+                />
+              </label>
+
+              <label>
+                <span>Moneda</span>
+                <select
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      currency: event.target.value as CreatePayableInput["currency"],
+                    }))
+                  }
+                  value={payableInput.currency}
+                >
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Origen</span>
+                <input
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      originDate: event.target.value,
+                    }))
+                  }
+                  type="date"
+                  value={payableInput.originDate}
+                />
+              </label>
+
+              <label>
+                <span>Vencimiento</span>
+                <input
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      dueDate: event.target.value,
+                    }))
+                  }
+                  type="date"
+                  value={payableInput.dueDate}
+                />
+              </label>
+
+              <label className="field-span-2">
+                <span>Concepto</span>
+                <input
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      concept: event.target.value,
+                    }))
+                  }
+                  placeholder="Materiales, alquiler, retiro..."
+                  value={payableInput.concept}
+                />
+              </label>
+
+              <label>
+                <span>Monto total</span>
+                <input
+                  min="0"
+                  onChange={(event) =>
+                    setPayableInput((current) => ({
+                      ...current,
+                      totalAmount: Number(event.target.value),
+                    }))
+                  }
+                  type="number"
+                  value={payableInput.totalAmount || ""}
+                />
+              </label>
+            </div>
+
+            <button className="button button--primary" type="submit">
+              Guardar cuenta a pagar
+            </button>
+          </form>
+        </div>
+
+        <div className="stack">
+          <article className="card">
+            <div className="card__heading">
+              <h3>Ultimos movimientos</h3>
+              <p>Ordenados por carga, con caja y categoria.</p>
+            </div>
+            <div className="stack">
+              {recentMovements.slice(0, 8).map((movement) => (
+                <div key={movement.id} className="list-row">
+                  <div>
+                    <strong>{movement.concept}</strong>
+                    <span>
+                      {cashAccountsById[movement.cashAccountId]?.name ?? "Caja"} -{" "}
+                      {movement.category}
+                    </span>
+                  </div>
+                  <div className="list-row__aside">
+                    <span>{formatDate(movement.movementDate)}</span>
+                    <strong className={movement.type === "ingreso" ? "text-positive" : "text-negative"}>
+                      {movement.type === "ingreso" ? "+" : "-"}
+                      {formatCurrency(movement.amount, movement.currency)}
+                    </strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="card">
+            <div className="card__heading">
+              <h3>Cuentas a cobrar</h3>
+              <p>Con registro parcial para seguir cada visita o cobranza.</p>
+            </div>
+            <div className="stack">
+              {openReceivables.map((receivable) => {
+                const pending = pendingAmount(
+                  receivable.totalAmount,
+                  receivable.collectedAmount,
+                );
+
+                return (
+                  <div key={receivable.id} className="progress-card">
+                    <div className="progress-card__header">
+                      <div>
+                        <strong>
+                          {shipyards.find(
+                            (shipyard) => shipyard.id === receivable.shipyardId,
+                          )?.name ?? "Astillero"}
+                        </strong>
+                        <span>{receivable.concept}</span>
+                      </div>
+                      <strong>{formatCurrency(pending, receivable.currency)}</strong>
+                    </div>
+
+                    <div className="progress-card__stats">
+                      <span>Total: {formatCurrency(receivable.totalAmount, receivable.currency)}</span>
+                      <span>Cobrado: {formatCurrency(receivable.collectedAmount, receivable.currency)}</span>
+                      <span>Vence: {formatDate(receivable.dueDate)}</span>
+                    </div>
+
+                    <div className="item-actions">
+                      <label>
+                        <span>Cobrar ahora</span>
+                        <input
+                          min="0"
+                          onChange={(event) =>
+                            setSettlementDrafts((current) => ({
+                              ...current,
+                              [receivable.id]: Number(event.target.value),
+                            }))
+                          }
+                          type="number"
+                          value={draftFor(receivable.id, pending) || ""}
+                        />
+                      </label>
+                      <button
+                        className="button button--secondary"
+                        onClick={() =>
+                          onSettleReceivable(
+                            {
+                              receivableId: receivable.id,
+                              amount: draftFor(receivable.id, pending),
+                            },
+                            currentUser,
+                          )
+                        }
+                        type="button"
+                      >
+                        Registrar cobro
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+
+          <article className="card">
+            <div className="card__heading">
+              <h3>Cuentas a pagar</h3>
+              <p>Sirve para proveedor, alquiler, retiros u otros compromisos.</p>
+            </div>
+            <div className="stack">
+              {openPayables.map((payable) => {
+                const pending = pendingAmount(
+                  payable.totalAmount,
+                  payable.paidAmount,
+                );
+
+                return (
+                  <div key={payable.id} className="progress-card">
+                    <div className="progress-card__header">
+                      <div>
+                        <strong>{payable.supplierName}</strong>
+                        <span>{payable.concept}</span>
+                      </div>
+                      <strong>{formatCurrency(pending, payable.currency)}</strong>
+                    </div>
+
+                    <div className="progress-card__stats">
+                      <span>Total: {formatCurrency(payable.totalAmount, payable.currency)}</span>
+                      <span>Pagado: {formatCurrency(payable.paidAmount, payable.currency)}</span>
+                      <span>Vence: {formatDate(payable.dueDate)}</span>
+                    </div>
+
+                    <div className="item-actions">
+                      <label>
+                        <span>Pagar ahora</span>
+                        <input
+                          min="0"
+                          onChange={(event) =>
+                            setSettlementDrafts((current) => ({
+                              ...current,
+                              [payable.id]: Number(event.target.value),
+                            }))
+                          }
+                          type="number"
+                          value={draftFor(payable.id, pending) || ""}
+                        />
+                      </label>
+                      <button
+                        className="button button--secondary"
+                        onClick={() =>
+                          onSettlePayable(
+                            {
+                              payableId: payable.id,
+                              amount: draftFor(payable.id, pending),
+                            },
+                            currentUser,
+                          )
+                        }
+                        type="button"
+                      >
+                        Registrar pago
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        </div>
       </div>
     </section>
   );
@@ -508,7 +1199,7 @@ function ProductsPanel({ products }: { products: AppProduct[] }) {
               ))}
             </div>
             <div className="card__footer">
-              <strong>{currency.format(product.salePriceArs)}</strong>
+              <strong>{arsCurrency.format(product.salePriceArs)}</strong>
               <span>precio de referencia actual</span>
             </div>
           </article>
@@ -948,13 +1639,45 @@ function StatCard({
   );
 }
 
+function calculateCashBalance(
+  cashAccountId: string,
+  cashMovements: AppCashMovement[],
+) {
+  return cashMovements.reduce((sum, movement) => {
+    if (movement.cashAccountId !== cashAccountId) {
+      return sum;
+    }
+
+    if (movement.type === "ingreso") {
+      return sum + movement.amount;
+    }
+
+    return sum - movement.amount;
+  }, 0);
+}
+
+function pendingAmount(totalAmount: number, completedAmount: number) {
+  return Math.max(0, totalAmount - completedAmount);
+}
+
 function formatOrderItems(
   order: AppOrder,
   productsById: Record<string, AppProduct>,
 ) {
   return order.items
-    .map((item) => `${item.quantityOrdered} ${productsById[item.productId]?.code ?? "?"}`)
+    .map(
+      (item) =>
+        `${item.quantityOrdered} ${productsById[item.productId]?.code ?? "?"}`,
+    )
     .join(" - ");
+}
+
+function formatCurrency(amount: number, currency: "ARS" | "USD") {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function statusLabel(status: string) {
