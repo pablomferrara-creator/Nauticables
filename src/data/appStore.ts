@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  setDoc,
+  type DocumentData,
+} from "firebase/firestore";
 import type {
   CashCurrency,
   CashMovementType,
@@ -6,6 +13,7 @@ import type {
   ProductKind,
   UserRole,
 } from "../domain/models";
+import { WORKSPACE_DOC_PATH, db } from "../firebase/config";
 
 const STORAGE_KEY = "nauticables-local-prototype-v3";
 
@@ -127,6 +135,8 @@ export interface AppState {
   receivables: AppReceivable[];
   payables: AppPayable[];
 }
+
+type SharedAppState = Omit<AppState, "activeUserId">;
 
 export interface CreateOrderInput {
   shipyardId: string;
@@ -563,6 +573,43 @@ function loadState(): AppState {
   }
 }
 
+function stripLocalOnlyState(state: AppState): SharedAppState {
+  const { activeUserId: _activeUserId, ...sharedState } = state;
+  return sharedState;
+}
+
+function restoreState(
+  sharedState: SharedAppState,
+  activeUserId: string | null,
+): AppState {
+  return {
+    activeUserId,
+    ...sharedState,
+  };
+}
+
+function parseRemoteState(data: DocumentData | undefined): SharedAppState | null {
+  if (!data) {
+    return null;
+  }
+
+  const candidate = data.appState as SharedAppState | undefined;
+  if (!candidate) {
+    return null;
+  }
+
+  return {
+    users: candidate.users ?? seedState.users,
+    shipyards: candidate.shipyards ?? seedState.shipyards,
+    products: candidate.products ?? seedState.products,
+    orders: deriveOrders(candidate.orders ?? seedState.orders),
+    cashAccounts: candidate.cashAccounts ?? seedState.cashAccounts,
+    cashMovements: candidate.cashMovements ?? seedState.cashMovements,
+    receivables: candidate.receivables ?? seedState.receivables,
+    payables: candidate.payables ?? seedState.payables,
+  };
+}
+
 function matchingCashAccountId(
   accounts: AppCashAccount[],
   currency: CashCurrency,
@@ -574,12 +621,110 @@ function matchingCashAccountId(
   );
 }
 
-export function useAppState() {
+export function useAppState(firebaseUid: string | null) {
   const [state, setState] = useState<AppState>(loadState);
+  const [syncStatus, setSyncStatus] = useState<
+    "local" | "connecting" | "synced" | "error"
+  >("local");
+  const remoteStateRef = useRef<string>("");
+  const skipNextWriteRef = useRef(false);
+  const workspaceRef = useMemo(
+    () => doc(db, WORKSPACE_DOC_PATH[0], WORKSPACE_DOC_PATH[1]),
+    [],
+  );
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    if (!firebaseUid) {
+      setSyncStatus("local");
+      return;
+    }
+
+    let mounted = true;
+    setSyncStatus("connecting");
+
+    const unsubscribe = onSnapshot(
+      workspaceRef,
+      async (snapshot) => {
+        if (!mounted) {
+          return;
+        }
+
+        if (!snapshot.exists()) {
+          const localState = stripLocalOnlyState(loadState());
+          remoteStateRef.current = JSON.stringify(localState);
+          skipNextWriteRef.current = true;
+          await setDoc(
+            workspaceRef,
+            {
+              appState: localState,
+              updatedAt: new Date().toISOString(),
+              updatedByFirebaseUid: firebaseUid,
+            },
+            { merge: true },
+          );
+          setState((current) => restoreState(localState, current.activeUserId));
+          setSyncStatus("synced");
+          return;
+        }
+
+        const remoteState = parseRemoteState(snapshot.data());
+        if (!remoteState) {
+          setSyncStatus("error");
+          return;
+        }
+
+        remoteStateRef.current = JSON.stringify(remoteState);
+        skipNextWriteRef.current = true;
+        setState((current) => restoreState(remoteState, current.activeUserId));
+        setSyncStatus("synced");
+      },
+      () => {
+        if (mounted) {
+          setSyncStatus("error");
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [firebaseUid, workspaceRef]);
+
+  useEffect(() => {
+    if (!firebaseUid || syncStatus === "connecting") {
+      return;
+    }
+
+    if (skipNextWriteRef.current) {
+      skipNextWriteRef.current = false;
+      return;
+    }
+
+    const sharedState = stripLocalOnlyState(state);
+    const serialized = JSON.stringify(sharedState);
+    if (serialized === remoteStateRef.current) {
+      return;
+    }
+
+    remoteStateRef.current = serialized;
+    void setDoc(
+      workspaceRef,
+      {
+        appState: sharedState,
+        updatedAt: new Date().toISOString(),
+        updatedByFirebaseUid: firebaseUid,
+      },
+      { merge: true },
+    ).then(
+      () => setSyncStatus("synced"),
+      () => setSyncStatus("error"),
+    );
+  }, [firebaseUid, state, syncStatus, workspaceRef]);
 
   function signInAs(userId: string) {
     setState((current) => ({
@@ -914,6 +1059,7 @@ export function useAppState() {
   return {
     state,
     currentUser,
+    syncStatus,
     signInAs,
     signOut,
     createOrder,

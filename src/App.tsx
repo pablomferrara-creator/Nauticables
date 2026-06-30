@@ -24,6 +24,7 @@ import {
   type SettlePayableInput,
   type SettleReceivableInput,
 } from "./data/appStore";
+import { useFirebaseSession } from "./firebase/session";
 
 type TabId =
   | "resumen"
@@ -58,9 +59,12 @@ const arsCurrency = new Intl.NumberFormat("es-AR", {
 });
 
 function App() {
+  const { authUser, error: authError, loading, login, logout } =
+    useFirebaseSession();
   const {
     state,
     currentUser,
+    syncStatus,
     signInAs,
     signOut,
     createOrder,
@@ -71,7 +75,7 @@ function App() {
     createPayable,
     settleReceivable,
     settlePayable,
-  } = useAppState();
+  } = useAppState(authUser?.uid ?? null);
   const [activeTab, setActiveTab] = useState<TabId>("resumen");
 
   useEffect(() => {
@@ -90,8 +94,31 @@ function App() {
     });
   }, [activeTab, currentUser]);
 
+  if (loading) {
+    return (
+      <div className="login-shell">
+        <div className="login-hero">
+          <span className="pill pill--accent">Conectando</span>
+          <h1>Estoy preparando tu espacio compartido.</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <FirebaseLoginScreen error={authError} onLogin={login} />;
+  }
+
   if (!currentUser) {
-    return <LoginScreen users={state.users} onSelect={signInAs} />;
+    return (
+      <LoginScreen
+        authEmail={authUser.email ?? ""}
+        onLogout={logout}
+        syncStatus={syncStatus}
+        users={state.users}
+        onSelect={signInAs}
+      />
+    );
   }
 
   const productsById = Object.fromEntries(
@@ -130,12 +157,19 @@ function App() {
               {currentUser.role === "admin" ? "Admin" : "Operador"}
             </strong>
           </div>
+          <div className="user-chip user-chip--subtle">
+            <span>{authUser.email ?? "Sesion Firebase"}</span>
+            <strong>{syncStatusLabel(syncStatus)}</strong>
+          </div>
           <button
             className="button button--ghost"
-            onClick={signOut}
+            onClick={() => {
+              signOut();
+              void logout();
+            }}
             type="button"
           >
-            Cambiar usuario
+            Cerrar sesion
           </button>
         </div>
       </header>
@@ -224,21 +258,34 @@ function App() {
 }
 
 function LoginScreen({
+  authEmail,
+  onLogout,
+  syncStatus,
   users,
   onSelect,
 }: {
+  authEmail: string;
+  onLogout: () => Promise<void>;
+  syncStatus: "local" | "connecting" | "synced" | "error";
   users: AppUser[];
   onSelect: (userId: string) => void;
 }) {
   return (
     <div className="login-shell">
       <div className="login-hero">
-        <span className="pill pill--accent">MVP local</span>
-        <h1>Nauticables ya puede probarse como app web.</h1>
+        <span className="pill pill--accent">Firebase conectado</span>
+        <h1>Elegi el perfil interno con el que vas a trabajar.</h1>
         <p>
-          Elegi un perfil para simular permisos. Mas adelante esto se cambia
-          por login real con Firebase.
+          La sesion ya entro con Firebase y ahora definimos el perfil interno
+          para esta etapa del proyecto.
         </p>
+        <div className="login-meta">
+          <span>{authEmail}</span>
+          <strong>{syncStatusLabel(syncStatus)}</strong>
+          <button className="button button--ghost" onClick={() => void onLogout()} type="button">
+            Salir de Firebase
+          </button>
+        </div>
       </div>
 
       <section className="login-grid">
@@ -257,6 +304,64 @@ function LoginScreen({
           </button>
         ))}
       </section>
+    </div>
+  );
+}
+
+function FirebaseLoginScreen({
+  error,
+  onLogin,
+}: {
+  error: string | null;
+  onLogin: (email: string, password: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  return (
+    <div className="login-shell">
+      <div className="login-hero">
+        <span className="pill pill--accent">Paso 1</span>
+        <h1>Entrar con Firebase</h1>
+        <p>
+          Usamos email y contrasena para mantenernos en la ruta gratuita y dejar
+          lista la sincronizacion real entre dispositivos.
+        </p>
+      </div>
+
+      <form
+        className="card login-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onLogin(email, password);
+        }}
+      >
+        <label>
+          <span>Email</span>
+          <input
+            autoComplete="email"
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            value={email}
+          />
+        </label>
+
+        <label>
+          <span>Contrasena</span>
+          <input
+            autoComplete="current-password"
+            onChange={(event) => setPassword(event.target.value)}
+            type="password"
+            value={password}
+          />
+        </label>
+
+        {error ? <p className="form-error">{error}</p> : null}
+
+        <button className="button button--primary" type="submit">
+          Entrar
+        </button>
+      </form>
     </div>
   );
 }
@@ -1716,6 +1821,17 @@ function formatDateTime(dateLike: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(dateLike));
+}
+
+function syncStatusLabel(status: "local" | "connecting" | "synced" | "error") {
+  const labels = {
+    local: "Local",
+    connecting: "Sincronizando",
+    synced: "Firebase ok",
+    error: "Error sync",
+  };
+
+  return labels[status];
 }
 
 export default App;

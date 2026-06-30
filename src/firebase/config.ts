@@ -25,3 +25,4 @@ export const db = initializeFirestore(firebaseApp, {
   }),
 });
 
+export const WORKSPACE_DOC_PATH = ["workspaces", "default"] as const;
