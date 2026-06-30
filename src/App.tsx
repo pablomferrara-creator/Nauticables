@@ -139,15 +139,15 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <div className="topbar__eyebrow">Nauticables / prototipo offline</div>
+          <div className="topbar__eyebrow">Nauticables / espacio compartido</div>
           <h1>
             {currentUser.role === "admin"
               ? "Centro operativo"
               : "Panel de produccion"}
           </h1>
           <p>
-            Por ahora guarda datos en este dispositivo. Cuando conectemos
-            Firebase, esta misma estructura se sincroniza entre usuarios.
+            Ya esta sincronizando con Firebase para que puedan trabajar desde
+            mas de un dispositivo con una misma base.
           </p>
         </div>
         <div className="topbar__meta">
@@ -415,8 +415,8 @@ function OverviewPanel({
           <h2>Lo importante antes de abrir la planilla</h2>
         </div>
         <div className="notice">
-          Ya podes probar pedidos, produccion y ahora tambien caja basica,
-          pendientes de cobro y de pago.
+          Ya podes probar pedidos, produccion, caja basica y pendientes de
+          cobro o pago sobre una base compartida.
         </div>
       </div>
 
@@ -470,7 +470,7 @@ function OverviewPanel({
         <article className="card">
           <div className="card__heading">
             <h3>Base comercial</h3>
-            <p>Clientes listos para pasar a login y sincronizacion real.</p>
+            <p>Clientes y contactos sobre una base ya sincronizada.</p>
           </div>
           <div className="stack">
             {shipyards.slice(0, 4).map((shipyard) => (
@@ -674,7 +674,8 @@ function CashPanel({
         </div>
         <div className="notice">
           Esto ya te permite probar el flujo que mas tiempo te consume hoy:
-          movimientos, cuentas pendientes y caja separada en ARS/USD.
+          movimientos, cuentas pendientes y caja separada en ARS/USD sobre una
+          misma base compartida.
         </div>
       </div>
 
