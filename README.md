@@ -46,11 +46,23 @@ Eso evita duplicar logica y refleja mejor como trabajan hoy.
 ```bash
 npm install
 npm run dev
+npm run build
+npm run deploy:hosting
 ```
 
 ## Variables de entorno
 
 Copiar `.env.example` a `.env` y completar credenciales de Firebase.
+
+## Hosting gratis
+
+Mientras nos mantengamos en Firebase `Spark`, podemos publicar la app con una
+URL gratuita tipo:
+
+- `https://nauticables-app.web.app`
+- `https://nauticables-app.firebaseapp.com`
+
+Eso no requiere comprar dominio propio.
 
 ## Proximos pasos
 
