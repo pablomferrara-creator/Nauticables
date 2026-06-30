@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   doc,
-  getDoc,
   onSnapshot,
   setDoc,
   type DocumentData,
@@ -21,7 +20,8 @@ export interface AppUser {
   id: string;
   name: string;
   role: UserRole;
-  pinHint: string;
+  email: string;
+  active: boolean;
 }
 
 export interface AppShipyard {
@@ -125,7 +125,6 @@ export interface AppPayable {
 }
 
 export interface AppState {
-  activeUserId: string | null;
   users: AppUser[];
   shipyards: AppShipyard[];
   products: AppProduct[];
@@ -136,7 +135,7 @@ export interface AppState {
   payables: AppPayable[];
 }
 
-type SharedAppState = Omit<AppState, "activeUserId">;
+type SharedAppState = AppState;
 
 export interface CreateOrderInput {
   shipyardId: string;
@@ -200,16 +199,36 @@ export interface SettlePayableInput {
   amount: number;
 }
 
+export interface UpdateUserAccessInput {
+  userId: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  active: boolean;
+}
+
 const seedState: AppState = {
-  activeUserId: null,
   users: [
-    { id: "u-admin-pablo", name: "Pablo", role: "admin", pinHint: "Admin" },
-    { id: "u-admin-socio", name: "Socio", role: "admin", pinHint: "Admin" },
+    {
+      id: "u-admin-pablo",
+      name: "Pablo",
+      role: "admin",
+      email: "pablomferrara@gmail.com",
+      active: true,
+    },
+    {
+      id: "u-admin-socio",
+      name: "Socio",
+      role: "admin",
+      email: "",
+      active: true,
+    },
     {
       id: "u-operador-1",
       name: "Operador taller",
       role: "operador",
-      pinHint: "Solo produccion",
+      email: "",
+      active: true,
     },
   ],
   shipyards: [
@@ -549,6 +568,16 @@ function deriveOrders(orders: AppOrder[]) {
   }));
 }
 
+function normalizeUsers(users: AppUser[] | undefined) {
+  return (users ?? seedState.users).map((user) => ({
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    email: user.email ?? "",
+    active: user.active ?? true,
+  }));
+}
+
 function loadState(): AppState {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -558,8 +587,7 @@ function loadState(): AppState {
   try {
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return {
-      activeUserId: parsed.activeUserId ?? null,
-      users: parsed.users ?? seedState.users,
+      users: normalizeUsers(parsed.users),
       shipyards: parsed.shipyards ?? seedState.shipyards,
       products: parsed.products ?? seedState.products,
       orders: deriveOrders(parsed.orders ?? seedState.orders),
@@ -573,21 +601,6 @@ function loadState(): AppState {
   }
 }
 
-function stripLocalOnlyState(state: AppState): SharedAppState {
-  const { activeUserId: _activeUserId, ...sharedState } = state;
-  return sharedState;
-}
-
-function restoreState(
-  sharedState: SharedAppState,
-  activeUserId: string | null,
-): AppState {
-  return {
-    activeUserId,
-    ...sharedState,
-  };
-}
-
 function parseRemoteState(data: DocumentData | undefined): SharedAppState | null {
   if (!data) {
     return null;
@@ -599,7 +612,7 @@ function parseRemoteState(data: DocumentData | undefined): SharedAppState | null
   }
 
   return {
-    users: candidate.users ?? seedState.users,
+    users: normalizeUsers(candidate.users),
     shipyards: candidate.shipyards ?? seedState.shipyards,
     products: candidate.products ?? seedState.products,
     orders: deriveOrders(candidate.orders ?? seedState.orders),
@@ -621,7 +634,10 @@ function matchingCashAccountId(
   );
 }
 
-export function useAppState(firebaseUid: string | null) {
+export function useAppState(
+  firebaseUid: string | null,
+  firebaseEmail: string | null,
+) {
   const [state, setState] = useState<AppState>(loadState);
   const [syncStatus, setSyncStatus] = useState<
     "local" | "connecting" | "synced" | "error"
@@ -654,7 +670,7 @@ export function useAppState(firebaseUid: string | null) {
         }
 
         if (!snapshot.exists()) {
-          const localState = stripLocalOnlyState(loadState());
+          const localState = loadState();
           remoteStateRef.current = JSON.stringify(localState);
           skipNextWriteRef.current = true;
           await setDoc(
@@ -666,7 +682,7 @@ export function useAppState(firebaseUid: string | null) {
             },
             { merge: true },
           );
-          setState((current) => restoreState(localState, current.activeUserId));
+          setState(localState);
           setSyncStatus("synced");
           return;
         }
@@ -679,7 +695,7 @@ export function useAppState(firebaseUid: string | null) {
 
         remoteStateRef.current = JSON.stringify(remoteState);
         skipNextWriteRef.current = true;
-        setState((current) => restoreState(remoteState, current.activeUserId));
+        setState(remoteState);
         setSyncStatus("synced");
       },
       () => {
@@ -705,8 +721,7 @@ export function useAppState(firebaseUid: string | null) {
       return;
     }
 
-    const sharedState = stripLocalOnlyState(state);
-    const serialized = JSON.stringify(sharedState);
+    const serialized = JSON.stringify(state);
     if (serialized === remoteStateRef.current) {
       return;
     }
@@ -715,7 +730,7 @@ export function useAppState(firebaseUid: string | null) {
     void setDoc(
       workspaceRef,
       {
-        appState: sharedState,
+        appState: state,
         updatedAt: new Date().toISOString(),
         updatedByFirebaseUid: firebaseUid,
       },
@@ -725,20 +740,6 @@ export function useAppState(firebaseUid: string | null) {
       () => setSyncStatus("error"),
     );
   }, [firebaseUid, state, syncStatus, workspaceRef]);
-
-  function signInAs(userId: string) {
-    setState((current) => ({
-      ...current,
-      activeUserId: userId,
-    }));
-  }
-
-  function signOut() {
-    setState((current) => ({
-      ...current,
-      activeUserId: null,
-    }));
-  }
 
   function createOrder(input: CreateOrderInput, userId: string) {
     const cleanedItems = input.items.filter(
@@ -1053,15 +1054,39 @@ export function useAppState(firebaseUid: string | null) {
     });
   }
 
+  function updateUserAccess(input: UpdateUserAccessInput) {
+    setState((current) => ({
+      ...current,
+      users: current.users.map((user) => {
+        if (user.id !== input.userId) {
+          return user;
+        }
+
+        return {
+          ...user,
+          name: input.name.trim(),
+          email: input.email.trim().toLowerCase(),
+          role: input.role,
+          active: input.active,
+        };
+      }),
+    }));
+  }
+
+  const normalizedEmail = firebaseEmail?.trim().toLowerCase() ?? "";
   const currentUser =
-    state.users.find((user) => user.id === state.activeUserId) ?? null;
+    state.users.find(
+      (user) =>
+        user.active &&
+        user.email.trim().toLowerCase() !== "" &&
+        user.email.trim().toLowerCase() === normalizedEmail,
+    ) ?? null;
 
   return {
     state,
     currentUser,
     syncStatus,
-    signInAs,
-    signOut,
+    updateUserAccess,
     createOrder,
     recordProduction,
     recordDelivery,

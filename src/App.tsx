@@ -23,6 +23,7 @@ import {
   type ProductionInput,
   type SettlePayableInput,
   type SettleReceivableInput,
+  type UpdateUserAccessInput,
 } from "./data/appStore";
 import { useFirebaseSession } from "./firebase/session";
 
@@ -32,7 +33,8 @@ type TabId =
   | "caja"
   | "produccion"
   | "productos"
-  | "astilleros";
+  | "astilleros"
+  | "accesos";
 
 interface TabOption {
   id: TabId;
@@ -45,6 +47,7 @@ const adminTabs: TabOption[] = [
   { id: "caja", label: "Caja" },
   { id: "productos", label: "Productos" },
   { id: "astilleros", label: "Astilleros" },
+  { id: "accesos", label: "Accesos" },
 ];
 
 const operatorTabs: TabOption[] = [
@@ -65,8 +68,7 @@ function App() {
     state,
     currentUser,
     syncStatus,
-    signInAs,
-    signOut,
+    updateUserAccess,
     createOrder,
     recordProduction,
     recordDelivery,
@@ -75,7 +77,7 @@ function App() {
     createPayable,
     settleReceivable,
     settlePayable,
-  } = useAppState(authUser?.uid ?? null);
+  } = useAppState(authUser?.uid ?? null, authUser?.email ?? null);
   const [activeTab, setActiveTab] = useState<TabId>("resumen");
 
   useEffect(() => {
@@ -111,12 +113,10 @@ function App() {
 
   if (!currentUser) {
     return (
-      <LoginScreen
+      <AccessPendingScreen
         authEmail={authUser.email ?? ""}
         onLogout={logout}
         syncStatus={syncStatus}
-        users={state.users}
-        onSelect={signInAs}
       />
     );
   }
@@ -164,7 +164,6 @@ function App() {
           <button
             className="button button--ghost"
             onClick={() => {
-              signOut();
               void logout();
             }}
             type="button"
@@ -235,6 +234,10 @@ function App() {
         {activeTab === "astilleros" && currentUser.role === "admin" ? (
           <ShipyardsPanel shipyards={state.shipyards} />
         ) : null}
+
+        {activeTab === "accesos" && currentUser.role === "admin" ? (
+          <AccessPanel users={state.users} onUpdateUserAccess={updateUserAccess} />
+        ) : null}
       </main>
 
       <nav className="bottom-nav">
@@ -257,27 +260,24 @@ function App() {
   );
 }
 
-function LoginScreen({
+function AccessPendingScreen({
   authEmail,
   onLogout,
   syncStatus,
-  users,
-  onSelect,
 }: {
   authEmail: string;
   onLogout: () => Promise<void>;
   syncStatus: "local" | "connecting" | "synced" | "error";
-  users: AppUser[];
-  onSelect: (userId: string) => void;
 }) {
   return (
     <div className="login-shell">
       <div className="login-hero">
         <span className="pill pill--accent">Firebase conectado</span>
-        <h1>Elegi el perfil interno con el que vas a trabajar.</h1>
+        <h1>Tu mail todavia no tiene acceso asignado.</h1>
         <p>
-          La sesion ya entro con Firebase y ahora definimos el perfil interno
-          para esta etapa del proyecto.
+          La sesion entro bien, pero este correo no esta vinculado a un perfil
+          de Nauticables. Desde un usuario admin se puede cargar este mail en la
+          seccion Accesos y automaticamente va a entrar con su rol.
         </p>
         <div className="login-meta">
           <span>{authEmail}</span>
@@ -287,23 +287,6 @@ function LoginScreen({
           </button>
         </div>
       </div>
-
-      <section className="login-grid">
-        {users.map((user) => (
-          <button
-            key={user.id}
-            className="login-card"
-            onClick={() => onSelect(user.id)}
-            type="button"
-          >
-            <span className="pill">
-              {user.role === "admin" ? "Admin" : "Operador"}
-            </span>
-            <strong>{user.name}</strong>
-            <span>{user.pinHint}</span>
-          </button>
-        ))}
-      </section>
     </div>
   );
 }
@@ -1312,6 +1295,123 @@ function ProductsPanel({ products }: { products: AppProduct[] }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function AccessPanel({
+  users,
+  onUpdateUserAccess,
+}: {
+  users: AppUser[];
+  onUpdateUserAccess: (input: UpdateUserAccessInput) => void;
+}) {
+  return (
+    <section className="panel">
+      <div className="panel__header">
+        <div>
+          <span className="section-kicker">Accesos</span>
+          <h2>Usuarios reales y permisos por mail</h2>
+        </div>
+        <div className="notice">
+          Carga el mail exacto con el que cada persona entra a Firebase. Si el
+          usuario esta inactivo, no entra aunque tenga contrasena.
+        </div>
+      </div>
+
+      <div className="stack">
+        {users.map((user) => (
+          <AccessCard
+            key={user.id}
+            user={user}
+            onSave={onUpdateUserAccess}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AccessCard({
+  user,
+  onSave,
+}: {
+  user: AppUser;
+  onSave: (input: UpdateUserAccessInput) => void;
+}) {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [role, setRole] = useState<AppUser["role"]>(user.role);
+  const [active, setActive] = useState(user.active);
+
+  useEffect(() => {
+    setName(user.name);
+    setEmail(user.email);
+    setRole(user.role);
+    setActive(user.active);
+  }, [user]);
+
+  return (
+    <form
+      className="card form-stack"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({
+          userId: user.id,
+          name,
+          email,
+          role,
+          active,
+        });
+      }}
+    >
+      <div className="card__heading">
+        <h3>{user.name}</h3>
+        <p>
+          {user.role === "admin"
+            ? "Puede ver gestion, caja, pedidos y accesos."
+            : "Solo ve produccion y catalogo."}
+        </p>
+      </div>
+
+      <label>
+        <span>Nombre</span>
+        <input onChange={(event) => setName(event.target.value)} value={name} />
+      </label>
+
+      <label>
+        <span>Email de ingreso</span>
+        <input
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="usuario@correo.com"
+          type="email"
+          value={email}
+        />
+      </label>
+
+      <label>
+        <span>Rol</span>
+        <select
+          onChange={(event) => setRole(event.target.value as AppUser["role"])}
+          value={role}
+        >
+          <option value="admin">Admin</option>
+          <option value="operador">Operador</option>
+        </select>
+      </label>
+
+      <label className="checkbox-row">
+        <input
+          checked={active}
+          onChange={(event) => setActive(event.target.checked)}
+          type="checkbox"
+        />
+        <span>Usuario activo</span>
+      </label>
+
+      <button className="button button--primary" type="submit">
+        Guardar acceso
+      </button>
+    </form>
   );
 }
 
