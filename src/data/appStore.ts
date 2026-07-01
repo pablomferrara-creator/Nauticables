@@ -596,12 +596,13 @@ function deriveOrders(orders: AppOrder[]) {
 }
 
 function normalizeUsers(users: AppUser[] | undefined) {
+  const defaultsById = new Map(seedState.users.map((user) => [user.id, user]));
   return (users ?? seedState.users).map((user) => ({
     id: user.id,
     name: user.name,
     role: user.role,
-    email: user.email ?? "",
-    active: user.active ?? true,
+    email: user.email ?? defaultsById.get(user.id)?.email ?? "",
+    active: user.active ?? defaultsById.get(user.id)?.active ?? true,
   }));
 }
 
