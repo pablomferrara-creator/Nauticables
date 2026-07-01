@@ -23,6 +23,7 @@ import {
   type ProductionInput,
   type SettlePayableInput,
   type SettleReceivableInput,
+  type UpdateProductCostingInput,
   type UpdateUserAccessInput,
 } from "./data/appStore";
 import { useFirebaseSession } from "./firebase/session";
@@ -69,6 +70,7 @@ function App() {
     currentUser,
     syncStatus,
     updateUserAccess,
+    updateProductCosting,
     createOrder,
     recordProduction,
     recordDelivery,
@@ -228,7 +230,11 @@ function App() {
         ) : null}
 
         {activeTab === "productos" ? (
-          <ProductsPanel products={state.products} />
+          <ProductsPanel
+            currentUser={currentUser}
+            products={state.products}
+            onUpdateProductCosting={updateProductCosting}
+          />
         ) : null}
 
         {activeTab === "astilleros" && currentUser.role === "admin" ? (
@@ -1267,7 +1273,15 @@ function ProductionPanel({
   );
 }
 
-function ProductsPanel({ products }: { products: AppProduct[] }) {
+function ProductsPanel({
+  currentUser,
+  products,
+  onUpdateProductCosting,
+}: {
+  currentUser: AppUser;
+  products: AppProduct[];
+  onUpdateProductCosting: (input: UpdateProductCostingInput) => void;
+}) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const filteredProducts = products.filter((product) => {
@@ -1280,8 +1294,8 @@ function ProductsPanel({ products }: { products: AppProduct[] }) {
     <section className="panel">
       <div className="panel__header">
         <div>
-          <span className="section-kicker">Catalogo</span>
-          <h2>Completos y subcables con una sola logica</h2>
+          <span className="section-kicker">Modelos</span>
+          <h2>Costos, MO y precio sugerido por cada cable</h2>
         </div>
         <label className="search">
           <span>Buscar</span>
@@ -1293,32 +1307,228 @@ function ProductsPanel({ products }: { products: AppProduct[] }) {
         </label>
       </div>
 
-      <div className="card-grid">
+      <div className="stats-grid">
+        <StatCard
+          label="Modelos activos"
+          value={String(filteredProducts.length)}
+          hint="Completos y subcables listos para cotizar"
+        />
+        <StatCard
+          label="Costo promedio"
+          value={arsCurrency.format(averageProductTotalCost(filteredProducts))}
+          hint="Materiales + mano de obra estandar"
+        />
+        <StatCard
+          label="Precio sugerido"
+          value={arsCurrency.format(averageSuggestedPrice(filteredProducts))}
+          hint="Promedio segun margen objetivo actual"
+        />
+      </div>
+
+      <div className="stack">
         {filteredProducts.map((product) => (
-          <article key={product.id} className="card card--product">
-            <div className="card__row">
-              <span className="pill">
-                {product.kind === "completo" ? "Completo" : "Subcable"}
-              </span>
-              <strong>{product.code}</strong>
-            </div>
-            <h3>{product.name}</h3>
-            <p>{product.family}</p>
-            <div className="chips">
-              {product.recipeSummary.map((component) => (
-                <span key={component} className="chip">
-                  {component}
-                </span>
-              ))}
-            </div>
-            <div className="card__footer">
-              <strong>{arsCurrency.format(product.salePriceArs)}</strong>
-              <span>precio de referencia actual</span>
-            </div>
-          </article>
+          <ProductCostCard
+            key={product.id}
+            canEdit={currentUser.role === "admin"}
+            onSave={onUpdateProductCosting}
+            product={product}
+          />
         ))}
       </div>
     </section>
+  );
+}
+
+function ProductCostCard({
+  canEdit,
+  onSave,
+  product,
+}: {
+  canEdit: boolean;
+  onSave: (input: UpdateProductCostingInput) => void;
+  product: AppProduct;
+}) {
+  const [laborHours, setLaborHours] = useState(product.laborHours);
+  const [laborHourlyRateArs, setLaborHourlyRateArs] = useState(
+    product.laborHourlyRateArs,
+  );
+  const [targetMarginPercent, setTargetMarginPercent] = useState(
+    product.targetMarginPercent,
+  );
+  const [salePriceArs, setSalePriceArs] = useState(product.salePriceArs);
+
+  useEffect(() => {
+    setLaborHours(product.laborHours);
+    setLaborHourlyRateArs(product.laborHourlyRateArs);
+    setTargetMarginPercent(product.targetMarginPercent);
+    setSalePriceArs(product.salePriceArs);
+  }, [product]);
+
+  const materialsCost = calculateProductMaterialsCost(product);
+  const laborCost = laborHours * laborHourlyRateArs;
+  const totalCost = materialsCost + laborCost;
+  const suggestedPrice = calculateSuggestedPrice(totalCost, targetMarginPercent);
+  const marginArs = Math.max(0, salePriceArs - totalCost);
+
+  return (
+    <article className="card">
+      <div className="card__heading">
+        <div className="card__row">
+          <span className="pill">
+            {product.kind === "completo" ? "Completo" : "Subcable"}
+          </span>
+          <strong>{product.code}</strong>
+        </div>
+        <h3>{product.name}</h3>
+        <p>{product.family}</p>
+      </div>
+
+      <div className="stats-grid stats-grid--compact">
+        <StatCard
+          label="Materiales"
+          value={arsCurrency.format(materialsCost)}
+          hint={`${product.recipeItems.length} items cargados`}
+        />
+        <StatCard
+          label="MO estandar"
+          value={arsCurrency.format(laborCost)}
+          hint={`${laborHours.toFixed(2)} h x ${arsCurrency.format(laborHourlyRateArs)}`}
+        />
+        <StatCard
+          label="Costo total"
+          value={arsCurrency.format(totalCost)}
+          hint="Base para presupuesto"
+        />
+        <StatCard
+          label="Precio sugerido"
+          value={arsCurrency.format(suggestedPrice)}
+          hint={`${targetMarginPercent}% de margen objetivo`}
+        />
+      </div>
+
+      <div className="split-grid split-grid--wide">
+        <div className="stack">
+          <div className="chips">
+            {product.recipeSummary.map((component) => (
+              <span key={component} className="chip">
+                {component}
+              </span>
+            ))}
+          </div>
+
+          <div className="detail-table">
+            {product.recipeItems.map((item) => (
+              <div key={item.id} className="detail-table__row">
+                <div>
+                  <strong>{item.name}</strong>
+                  <span>
+                    {item.quantity} {item.unit} - {item.supplier}
+                  </span>
+                </div>
+                <strong>
+                  {arsCurrency.format(item.quantity * item.unitCostArs)}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <form
+          className="card card--nested form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSave({
+              productId: product.id,
+              laborHours,
+              laborHourlyRateArs,
+              targetMarginPercent,
+              salePriceArs,
+            });
+          }}
+        >
+          <div className="card__heading">
+            <h3>{canEdit ? "Ajustes de presupuesto" : "Resumen comercial"}</h3>
+            <p>
+              {canEdit
+                ? "Podes recalibrar horas, valor hora, margen y precio actual."
+                : "Lectura rapida del costo y precio actual de referencia."}
+            </p>
+          </div>
+
+          <div className="form-grid">
+            <label>
+              <span>Horas MO</span>
+              <input
+                disabled={!canEdit}
+                min="0"
+                onChange={(event) => setLaborHours(Number(event.target.value))}
+                step="0.1"
+                type="number"
+                value={laborHours}
+              />
+            </label>
+
+            <label>
+              <span>Valor hora MO</span>
+              <input
+                disabled={!canEdit}
+                min="0"
+                onChange={(event) =>
+                  setLaborHourlyRateArs(Number(event.target.value))
+                }
+                type="number"
+                value={laborHourlyRateArs}
+              />
+            </label>
+
+            <label>
+              <span>Margen objetivo %</span>
+              <input
+                disabled={!canEdit}
+                min="0"
+                onChange={(event) =>
+                  setTargetMarginPercent(Number(event.target.value))
+                }
+                type="number"
+                value={targetMarginPercent}
+              />
+            </label>
+
+            <label>
+              <span>Precio actual de venta</span>
+              <input
+                disabled={!canEdit}
+                min="0"
+                onChange={(event) => setSalePriceArs(Number(event.target.value))}
+                type="number"
+                value={salePriceArs}
+              />
+            </label>
+          </div>
+
+          <div className="detail-list">
+            <div>
+              <span>Precio sugerido con margen</span>
+              <strong>{arsCurrency.format(suggestedPrice)}</strong>
+            </div>
+            <div>
+              <span>Diferencia contra precio actual</span>
+              <strong>{arsCurrency.format(salePriceArs - suggestedPrice)}</strong>
+            </div>
+            <div>
+              <span>Margen bruto actual</span>
+              <strong>{arsCurrency.format(marginArs)}</strong>
+            </div>
+          </div>
+
+          {canEdit ? (
+            <button className="button button--primary" type="submit">
+              Guardar ajustes
+            </button>
+          ) : null}
+        </form>
+      </div>
+    </article>
   );
 }
 
@@ -1937,6 +2147,54 @@ function calculateCashBalance(
 
 function pendingAmount(totalAmount: number, completedAmount: number) {
   return Math.max(0, totalAmount - completedAmount);
+}
+
+function calculateProductMaterialsCost(product: AppProduct) {
+  return product.recipeItems.reduce(
+    (sum, item) => sum + item.quantity * item.unitCostArs,
+    0,
+  );
+}
+
+function calculateProductLaborCost(product: AppProduct) {
+  return product.laborHours * product.laborHourlyRateArs;
+}
+
+function calculateProductTotalCost(product: AppProduct) {
+  return calculateProductMaterialsCost(product) + calculateProductLaborCost(product);
+}
+
+function calculateSuggestedPrice(totalCost: number, marginPercent: number) {
+  return totalCost * (1 + marginPercent / 100);
+}
+
+function averageProductTotalCost(products: AppProduct[]) {
+  if (products.length === 0) {
+    return 0;
+  }
+
+  return (
+    products.reduce((sum, product) => sum + calculateProductTotalCost(product), 0) /
+    products.length
+  );
+}
+
+function averageSuggestedPrice(products: AppProduct[]) {
+  if (products.length === 0) {
+    return 0;
+  }
+
+  return (
+    products.reduce(
+      (sum, product) =>
+        sum +
+        calculateSuggestedPrice(
+          calculateProductTotalCost(product),
+          product.targetMarginPercent,
+        ),
+      0,
+    ) / products.length
+  );
 }
 
 function startOfLocalDay(dateLike: string) {

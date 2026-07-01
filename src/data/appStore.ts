@@ -41,6 +41,19 @@ export interface AppProduct {
   salePriceArs: number;
   family: string;
   recipeSummary: string[];
+  laborHours: number;
+  laborHourlyRateArs: number;
+  targetMarginPercent: number;
+  recipeItems: AppRecipeItem[];
+}
+
+export interface AppRecipeItem {
+  id: string;
+  name: string;
+  supplier: string;
+  unit: string;
+  quantity: number;
+  unitCostArs: number;
 }
 
 export interface AppOrderItem {
@@ -219,6 +232,14 @@ export interface UpdateUserAccessInput {
   active: boolean;
 }
 
+export interface UpdateProductCostingInput {
+  productId: string;
+  laborHours: number;
+  laborHourlyRateArs: number;
+  targetMarginPercent: number;
+  salePriceArs: number;
+}
+
 const seedState: AppState = {
   users: [
     {
@@ -285,11 +306,56 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 281207,
       family: "Klase",
+      laborHours: 2.6,
+      laborHourlyRateArs: 18500,
+      targetMarginPercent: 35,
       recipeSummary: [
         "Ficha A y B K180",
         "Cableado base",
         "Terminales",
         "Armado final",
+      ],
+      recipeItems: [
+        {
+          id: "ri-k180-1",
+          name: "Relay ku-35n 12v 50a",
+          supplier: "Autopartes Pilar",
+          unit: "u",
+          quantity: 2,
+          unitCostArs: 1600,
+        },
+        {
+          id: "ri-k180-2",
+          name: "Fusilera genrod 6 vias",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 1,
+          unitCostArs: 7939.57,
+        },
+        {
+          id: "ri-k180-3",
+          name: "Fusibles 10A",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 8,
+          unitCostArs: 142,
+        },
+        {
+          id: "ri-k180-4",
+          name: "Terminales y empalmes",
+          supplier: "Janored / Zeta",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 12850,
+        },
+        {
+          id: "ri-k180-5",
+          name: "Ficha 8 vias y cableado",
+          supplier: "Zeta / Janored",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 46200,
+        },
       ],
     },
     {
@@ -299,7 +365,28 @@ const seedState: AppState = {
       kind: "subcable",
       salePriceArs: 40500,
       family: "Klase",
+      laborHours: 0.55,
+      laborHourlyRateArs: 18500,
+      targetMarginPercent: 28,
       recipeSummary: ["Relay", "Fusibles", "Terminales", "Mano de obra"],
+      recipeItems: [
+        {
+          id: "ri-k180fab-1",
+          name: "Relay y fusibles",
+          supplier: "Janored",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 11800,
+        },
+        {
+          id: "ri-k180fab-2",
+          name: "Terminales y aislacion",
+          supplier: "Janored / Zeta",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 6800,
+        },
+      ],
     },
     {
       id: "pr-k2400",
@@ -308,11 +395,48 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 784500,
       family: "Klase",
+      laborHours: 6.2,
+      laborHourlyRateArs: 18500,
+      targetMarginPercent: 38,
       recipeSummary: [
         "Tablero K2400",
         "Chicote audio",
         "Cortesia",
         "Armado final",
+      ],
+      recipeItems: [
+        {
+          id: "ri-k2400-1",
+          name: "Tablero base K2400",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 1,
+          unitCostArs: 138000,
+        },
+        {
+          id: "ri-k2400-2",
+          name: "Chicote audio",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 1,
+          unitCostArs: 48750,
+        },
+        {
+          id: "ri-k2400-3",
+          name: "Cortesia y accesorios",
+          supplier: "Janored / Zeta",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 39100,
+        },
+        {
+          id: "ri-k2400-4",
+          name: "Cableado y terminales",
+          supplier: "Janored",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 176500,
+        },
       ],
     },
     {
@@ -322,11 +446,40 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 410000,
       family: "Vision",
+      laborHours: 3.4,
+      laborHourlyRateArs: 18500,
+      targetMarginPercent: 32,
       recipeSummary: [
         "Bornera",
         "Empalmes",
         "Subcables",
         "Control de calidad",
+      ],
+      recipeItems: [
+        {
+          id: "ri-v180-1",
+          name: "Bornera principal",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 1,
+          unitCostArs: 28400,
+        },
+        {
+          id: "ri-v180-2",
+          name: "Empalmes y terminales",
+          supplier: "Janored / Zeta",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 42300,
+        },
+        {
+          id: "ri-v180-3",
+          name: "Subcables base",
+          supplier: "Janored",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 141000,
+        },
       ],
     },
     {
@@ -336,11 +489,32 @@ const seedState: AppState = {
       kind: "completo",
       salePriceArs: 265000,
       family: "Vision",
+      laborHours: 2.1,
+      laborHourlyRateArs: 18500,
+      targetMarginPercent: 30,
       recipeSummary: [
         "Base compacta",
         "Tablero",
         "Terminales",
         "Prueba final",
+      ],
+      recipeItems: [
+        {
+          id: "ri-v150-1",
+          name: "Base compacta",
+          supplier: "Janored",
+          unit: "u",
+          quantity: 1,
+          unitCostArs: 36500,
+        },
+        {
+          id: "ri-v150-2",
+          name: "Terminales y cable",
+          supplier: "Janored / Zeta",
+          unit: "kit",
+          quantity: 1,
+          unitCostArs: 68400,
+        },
       ],
     },
   ],
@@ -597,13 +771,45 @@ function deriveOrders(orders: AppOrder[]) {
 
 function normalizeUsers(users: AppUser[] | undefined) {
   const defaultsById = new Map(seedState.users.map((user) => [user.id, user]));
-  return (users ?? seedState.users).map((user) => ({
-    id: user.id,
-    name: user.name,
-    role: user.role,
-    email: user.email ?? defaultsById.get(user.id)?.email ?? "",
-    active: user.active ?? defaultsById.get(user.id)?.active ?? true,
-  }));
+  return (users ?? seedState.users).map((user) => {
+    const defaultUser = defaultsById.get(user.id);
+    const normalizedEmail =
+      user.email && user.email.trim() !== ""
+        ? user.email
+        : defaultUser?.email ?? "";
+
+    return {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      email: normalizedEmail,
+      active: user.active ?? defaultUser?.active ?? true,
+    };
+  });
+}
+
+function normalizeProducts(products: AppProduct[] | undefined) {
+  const defaultsById = new Map(seedState.products.map((product) => [product.id, product]));
+
+  return (products ?? seedState.products).map((product) => {
+    const defaultProduct = defaultsById.get(product.id);
+
+    return {
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      kind: product.kind,
+      salePriceArs: product.salePriceArs ?? defaultProduct?.salePriceArs ?? 0,
+      family: product.family,
+      recipeSummary: product.recipeSummary ?? defaultProduct?.recipeSummary ?? [],
+      laborHours: product.laborHours ?? defaultProduct?.laborHours ?? 0,
+      laborHourlyRateArs:
+        product.laborHourlyRateArs ?? defaultProduct?.laborHourlyRateArs ?? 0,
+      targetMarginPercent:
+        product.targetMarginPercent ?? defaultProduct?.targetMarginPercent ?? 0,
+      recipeItems: product.recipeItems ?? defaultProduct?.recipeItems ?? [],
+    };
+  });
 }
 
 function loadState(): AppState {
@@ -617,7 +823,7 @@ function loadState(): AppState {
     return {
       users: normalizeUsers(parsed.users),
       shipyards: parsed.shipyards ?? seedState.shipyards,
-      products: parsed.products ?? seedState.products,
+      products: normalizeProducts(parsed.products),
       orders: deriveOrders(parsed.orders ?? seedState.orders),
       cashAccounts: parsed.cashAccounts ?? seedState.cashAccounts,
       cashMovements: parsed.cashMovements ?? seedState.cashMovements,
@@ -642,7 +848,7 @@ function parseRemoteState(data: DocumentData | undefined): SharedAppState | null
   return {
     users: normalizeUsers(candidate.users),
     shipyards: candidate.shipyards ?? seedState.shipyards,
-    products: candidate.products ?? seedState.products,
+    products: normalizeProducts(candidate.products),
     orders: deriveOrders(candidate.orders ?? seedState.orders),
     cashAccounts: candidate.cashAccounts ?? seedState.cashAccounts,
     cashMovements: candidate.cashMovements ?? seedState.cashMovements,
@@ -1119,6 +1325,25 @@ export function useAppState(
     }));
   }
 
+  function updateProductCosting(input: UpdateProductCostingInput) {
+    setState((current) => ({
+      ...current,
+      products: current.products.map((product) => {
+        if (product.id !== input.productId) {
+          return product;
+        }
+
+        return {
+          ...product,
+          laborHours: Math.max(0, input.laborHours),
+          laborHourlyRateArs: Math.max(0, input.laborHourlyRateArs),
+          targetMarginPercent: Math.max(0, input.targetMarginPercent),
+          salePriceArs: Math.max(0, input.salePriceArs),
+        };
+      }),
+    }));
+  }
+
   const normalizedEmail = firebaseEmail?.trim().toLowerCase() ?? "";
   const currentUser =
     state.users.find(
@@ -1133,6 +1358,7 @@ export function useAppState(
     currentUser,
     syncStatus,
     updateUserAccess,
+    updateProductCosting,
     createOrder,
     recordProduction,
     recordDelivery,
