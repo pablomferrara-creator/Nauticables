@@ -347,6 +347,16 @@ body {
   background: #f4c96b;
 }
 
+.pill--warning {
+  color: #694508;
+  background: #f1d89b;
+}
+
+.pill--danger {
+  color: #6c2323;
+  background: #f3c4c4;
+}
+
 .status--terminado,
 .status--entregado {
   color: #114236;
@@ -397,6 +407,10 @@ body {
   padding: 0.75rem 0.85rem;
   border-radius: 0.95rem;
   background: rgba(214, 236, 233, 0.46);
+}
+
+.log-entry--delivery {
+  background: rgba(244, 201, 107, 0.22);
 }
 
 .log-entry p {

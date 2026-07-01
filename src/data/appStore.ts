@@ -61,6 +61,16 @@ export interface AppProductionEntry {
   note: string;
 }
 
+export interface AppDeliveryEntry {
+  id: string;
+  orderItemId: string;
+  createdAt: string;
+  createdByUserId: string;
+  createdByName: string;
+  quantity: number;
+  note: string;
+}
+
 export interface AppOrder {
   id: string;
   shipyardId: string;
@@ -72,6 +82,7 @@ export interface AppOrder {
   createdByUserId: string;
   items: AppOrderItem[];
   productionEntries: AppProductionEntry[];
+  deliveryEntries: AppDeliveryEntry[];
 }
 
 export interface AppCashAccount {
@@ -160,6 +171,7 @@ export interface DeliveryInput {
   orderId: string;
   orderItemId: string;
   quantity: number;
+  note: string;
 }
 
 export interface CreateCashMovementInput {
@@ -362,6 +374,7 @@ const seedState: AppState = {
           note: "Primer juego terminado y probado.",
         },
       ],
+      deliveryEntries: [],
     },
     {
       id: "or-002",
@@ -382,6 +395,7 @@ const seedState: AppState = {
         },
       ],
       productionEntries: [],
+      deliveryEntries: [],
     },
     {
       id: "or-003",
@@ -426,6 +440,17 @@ const seedState: AppState = {
           createdByName: "Operador taller",
           quantity: 1,
           note: "Primer V150 eco armado.",
+        },
+      ],
+      deliveryEntries: [
+        {
+          id: "de-001",
+          orderItemId: "oi-003",
+          createdAt: "2026-05-29T11:00:00.000Z",
+          createdByUserId: "u-admin-pablo",
+          createdByName: "Pablo",
+          quantity: 1,
+          note: "Se entrego una unidad en visita semanal.",
         },
       ],
     },
@@ -565,6 +590,8 @@ function deriveOrders(orders: AppOrder[]) {
   return orders.map((order) => ({
     ...order,
     status: deriveStatus(order.items),
+    productionEntries: order.productionEntries ?? [],
+    deliveryEntries: order.deliveryEntries ?? [],
   }));
 }
 
@@ -767,6 +794,7 @@ export function useAppState(
           quantityDelivered: 0,
         })),
         productionEntries: [],
+        deliveryEntries: [],
       };
 
       return {
@@ -819,7 +847,7 @@ export function useAppState(
     }));
   }
 
-  function recordDelivery(input: DeliveryInput) {
+  function recordDelivery(input: DeliveryInput, user: AppUser) {
     if (input.quantity <= 0) {
       return;
     }
@@ -832,6 +860,7 @@ export function useAppState(
             return order;
           }
 
+          let createdDeliveryQuantity = 0;
           return {
             ...order,
             items: order.items.map((item) => {
@@ -845,12 +874,28 @@ export function useAppState(
                 input.quantity,
                 Math.max(0, maxDeliverable),
               );
+              createdDeliveryQuantity = appliedQuantity;
 
               return {
                 ...item,
                 quantityDelivered: item.quantityDelivered + appliedQuantity,
               };
             }),
+            deliveryEntries:
+              createdDeliveryQuantity > 0
+                ? [
+                    {
+                      id: crypto.randomUUID(),
+                      orderItemId: input.orderItemId,
+                      createdAt: new Date().toISOString(),
+                      createdByUserId: user.id,
+                      createdByName: user.name,
+                      quantity: createdDeliveryQuantity,
+                      note: input.note.trim(),
+                    },
+                    ...order.deliveryEntries,
+                  ]
+                : order.deliveryEntries,
           };
         }),
       ),

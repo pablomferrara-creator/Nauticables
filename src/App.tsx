@@ -498,7 +498,7 @@ function OrdersPanel({
   shipyardsById: Record<string, AppShipyard>;
   onCreateOrder: (input: CreateOrderInput, userId: string) => void;
   onRecordProduction: (input: ProductionInput, user: AppUser) => void;
-  onRecordDelivery: (input: DeliveryInput) => void;
+  onRecordDelivery: (input: DeliveryInput, user: AppUser) => void;
 }) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -1214,6 +1214,12 @@ function ProductionPanel({
   shipyardsById: Record<string, AppShipyard>;
   onRecordProduction: (input: ProductionInput, user: AppUser) => void;
 }) {
+  const overdueCount = orders.filter((order) => orderDueBucket(order) === "overdue").length;
+  const urgentCount = orders.filter((order) =>
+    ["overdue", "today", "tomorrow"].includes(orderDueBucket(order)),
+  ).length;
+  const readyToDeliverCount = orders.filter((order) => order.status === "terminado").length;
+
   return (
     <section className="panel">
       <div className="panel__header">
@@ -1225,6 +1231,24 @@ function ProductionPanel({
           Solo muestra lo que queda fabricar o entregar. El objetivo es que
           esta pantalla se pueda usar con el celular en el taller.
         </div>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard
+          hint="Ya pasaron la fecha objetivo"
+          label="Vencidos"
+          value={String(overdueCount)}
+        />
+        <StatCard
+          hint="Para encarar primero en el taller"
+          label="Urgentes"
+          value={String(urgentCount)}
+        />
+        <StatCard
+          hint="Listos para salir si coordinan entrega"
+          label="Terminados"
+          value={String(readyToDeliverCount)}
+        />
       </div>
 
       <div className="stack">
@@ -1640,19 +1664,39 @@ function OrderCard({
   productsById: Record<string, AppProduct>;
   shipyardsById: Record<string, AppShipyard>;
   onRecordProduction: (input: ProductionInput, user: AppUser) => void;
-  onRecordDelivery?: (input: DeliveryInput) => void;
+  onRecordDelivery?: (input: DeliveryInput, user: AppUser) => void;
 }) {
   const [drafts, setDrafts] = useState<
-    Record<string, { production: number; delivery: number; note: string }>
+    Record<
+      string,
+      {
+        production: number;
+        delivery: number;
+        note: string;
+        deliveryNote: string;
+      }
+    >
   >({});
+  const dueLabel = orderDueLabel(order);
+  const dueTone = orderDueTone(order);
 
   function currentDraft(itemId: string) {
-    return drafts[itemId] ?? { production: 1, delivery: 1, note: "" };
+    return drafts[itemId] ?? {
+      production: 1,
+      delivery: 1,
+      note: "",
+      deliveryNote: "",
+    };
   }
 
   function updateDraft(
     itemId: string,
-    nextValue: Partial<{ production: number; delivery: number; note: string }>,
+    nextValue: Partial<{
+      production: number;
+      delivery: number;
+      note: string;
+      deliveryNote: string;
+    }>,
   ) {
     setDrafts((current) => ({
       ...current,
@@ -1673,7 +1717,10 @@ function OrderCard({
               {statusLabel(order.status)}
             </span>
           </div>
-          <p>Entrega {formatDate(order.deliveryDueAt)}</p>
+          <p>
+            Entrega {formatDate(order.deliveryDueAt)}{" "}
+            <span className={`pill ${dueTone}`}>{dueLabel}</span>
+          </p>
         </div>
         <div className="order-card__meta">
           <span>Pedido {formatDate(order.orderedAt)}</span>
@@ -1744,6 +1791,19 @@ function OrderCard({
                   </div>
                 ))}
 
+              {order.deliveryEntries
+                .filter((entry) => entry.orderItemId === item.id)
+                .slice(0, 2)
+                .map((entry) => (
+                  <div key={entry.id} className="log-entry log-entry--delivery">
+                    <strong>Entrega +{entry.quantity}</strong>
+                    <span>
+                      {entry.createdByName} - {formatDateTime(entry.createdAt)}
+                    </span>
+                    {entry.note ? <p>{entry.note}</p> : null}
+                  </div>
+                ))}
+
               <div className="item-actions">
                 <label>
                   <span>Producidas ahora</span>
@@ -1804,6 +1864,18 @@ function OrderCard({
                       value={draft.delivery}
                     />
                   </label>
+                  <label className="item-actions__note">
+                    <span>Nota entrega</span>
+                    <input
+                      onChange={(event) =>
+                        updateDraft(item.id, {
+                          deliveryNote: event.target.value,
+                        })
+                      }
+                      placeholder="Retira, entregado parcial, observacion"
+                      value={draft.deliveryNote}
+                    />
+                  </label>
                   <button
                     className="button button--ghost"
                     onClick={() =>
@@ -1811,7 +1883,8 @@ function OrderCard({
                         orderId: order.id,
                         orderItemId: item.id,
                         quantity: draft.delivery,
-                      })
+                        note: draft.deliveryNote,
+                      }, currentUser)
                     }
                     type="button"
                   >
@@ -1864,6 +1937,56 @@ function calculateCashBalance(
 
 function pendingAmount(totalAmount: number, completedAmount: number) {
   return Math.max(0, totalAmount - completedAmount);
+}
+
+function startOfLocalDay(dateLike: string) {
+  const [year, month, day] = dateLike.slice(0, 10).split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+function dayDiffFromToday(dateLike: string) {
+  const today = startOfLocalDay(todayIso());
+  const target = startOfLocalDay(dateLike);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function orderDueBucket(order: AppOrder) {
+  const diff = dayDiffFromToday(order.deliveryDueAt);
+  if (diff < 0) {
+    return "overdue";
+  }
+  if (diff === 0) {
+    return "today";
+  }
+  if (diff === 1) {
+    return "tomorrow";
+  }
+  if (diff <= 7) {
+    return "week";
+  }
+  return "later";
+}
+
+function orderDueLabel(order: AppOrder) {
+  const labels: Record<string, string> = {
+    overdue: "Vencido",
+    today: "Hoy",
+    tomorrow: "Manana",
+    week: "Esta semana",
+    later: "Mas adelante",
+  };
+  return labels[orderDueBucket(order)];
+}
+
+function orderDueTone(order: AppOrder) {
+  const tones: Record<string, string> = {
+    overdue: "pill--danger",
+    today: "pill--danger",
+    tomorrow: "pill--warning",
+    week: "pill--accent",
+    later: "",
+  };
+  return tones[orderDueBucket(order)];
 }
 
 function formatOrderItems(
