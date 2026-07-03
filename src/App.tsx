@@ -1397,11 +1397,10 @@ function ProductCostCard({
   const directLaborCost = laborHours * laborHourlyRateArs;
   const totalMaterialsCost = calculateAggregateMaterialsCost(product, productsById);
   const totalLaborCost = calculateAggregateLaborCost(product, productsById);
-  const subcomponentsCost = calculateSubcomponentsCost(product, productsById);
   const totalCost = totalMaterialsCost + totalLaborCost;
-  const suggestedPrice = calculateSuggestedPrice(totalCost, targetMarginPercent);
-  const marginArs = salePriceArs - totalCost;
-  const marginPercent = calculateMarginPercent(salePriceArs, totalCost);
+  const totalSalePrice = calculateAggregateSalePrice(product, productsById);
+  const marginArs = totalSalePrice - totalCost;
+  const marginPercent = calculateMarginPercent(totalSalePrice, totalCost);
 
   return (
     <details className="product-cascade" open>
@@ -1417,6 +1416,7 @@ function ProductCostCard({
         <div className="product-cascade__metrics">
           <span>Materiales {arsCurrency.format(totalMaterialsCost)}</span>
           <span>MO {arsCurrency.format(totalLaborCost)}</span>
+          <span>Venta {arsCurrency.format(totalSalePrice)}</span>
           <strong>Total {arsCurrency.format(totalCost)}</strong>
         </div>
       </summary>
@@ -1440,8 +1440,8 @@ function ProductCostCard({
           />
           <StatCard
             label="Precio de venta"
-            value={arsCurrency.format(salePriceArs)}
-            hint="Valor actual del mazo completo"
+            value={arsCurrency.format(totalSalePrice)}
+            hint="Suma de los subcomponentes"
           />
           <StatCard
             label="Margen ganancia"
@@ -1466,22 +1466,22 @@ function ProductCostCard({
               Materiales {formatDetailedCurrency(directMaterialsCost, "ARS")}
             </span>
             <span>MO {formatDetailedCurrency(directLaborCost, "ARS")}</span>
-            <span>
-              Precio venta{" "}
-              {formatDetailedCurrency(
-                product.salePriceArs - subcomponentsCost,
-                "ARS",
-              )}
-            </span>
+            <span>Precio venta {formatDetailedCurrency(product.salePriceArs, "ARS")}</span>
             <strong>
               Margen{" "}
               {calculateMarginPercent(
-                product.salePriceArs - subcomponentsCost,
+                product.salePriceArs,
                 directMaterialsCost + directLaborCost,
               ).toFixed(1)}
               %
             </strong>
           </div>
+          <BudgetMiniForm
+            canEdit={canEdit}
+            onSave={onSave}
+            product={product}
+            productsById={productsById}
+          />
           <div className="table-shell">
             <table className="materials-table product-detail-table">
               <thead>
@@ -1547,6 +1547,12 @@ function ProductCostCard({
                   {" "}({formatDetailedCurrency(childMargin, "ARS")})
                 </strong>
               </div>
+              <BudgetMiniForm
+                canEdit={canEdit}
+                onSave={onSave}
+                product={child}
+                productsById={productsById}
+              />
               <div className="table-shell">
                 <table className="materials-table product-detail-table">
                   <thead>
@@ -1590,106 +1596,115 @@ function ProductCostCard({
               </span>
             ))}
           </div>
-
-          <form
-            className="card card--nested form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSave({
-                productId: product.id,
-                laborHours,
-                laborHourlyRateArs,
-                targetMarginPercent,
-                salePriceArs,
-              });
-            }}
-          >
-          <div className="card__heading">
-            <h3>{canEdit ? "Ajustes de presupuesto" : "Resumen comercial"}</h3>
-            <p>
-              {canEdit
-                ? "Podes recalibrar horas, valor hora, margen y precio actual."
-                : "Lectura rapida del costo y precio actual de referencia."}
-            </p>
-          </div>
-
-          <div className="form-grid">
-            <label>
-              <span>Horas MO</span>
-              <input
-                disabled={!canEdit}
-                min="0"
-                onChange={(event) => setLaborHours(Number(event.target.value))}
-                step="0.1"
-                type="number"
-                value={laborHours}
-              />
-            </label>
-
-            <label>
-              <span>Valor hora MO</span>
-              <input
-                disabled={!canEdit}
-                min="0"
-                onChange={(event) =>
-                  setLaborHourlyRateArs(Number(event.target.value))
-                }
-                type="number"
-                value={laborHourlyRateArs}
-              />
-            </label>
-
-            <label>
-              <span>Margen objetivo %</span>
-              <input
-                disabled={!canEdit}
-                min="0"
-                onChange={(event) =>
-                  setTargetMarginPercent(Number(event.target.value))
-                }
-                type="number"
-                value={targetMarginPercent}
-              />
-            </label>
-
-            <label>
-              <span>Precio actual de venta</span>
-              <input
-                disabled={!canEdit}
-                min="0"
-                onChange={(event) => setSalePriceArs(Number(event.target.value))}
-                type="number"
-                value={salePriceArs}
-              />
-            </label>
-          </div>
-
-          <div className="detail-list">
-            <div>
-              <span>Precio sugerido con margen</span>
-              <strong>{arsCurrency.format(suggestedPrice)}</strong>
-            </div>
-            <div>
-              <span>Diferencia contra precio actual</span>
-              <strong>{arsCurrency.format(salePriceArs - suggestedPrice)}</strong>
-            </div>
-            <div>
-              <span>Margen bruto actual</span>
-              <strong>
-                {arsCurrency.format(marginArs)} / {marginPercent.toFixed(1)}%
-              </strong>
-            </div>
-          </div>
-
-          {canEdit ? (
-            <button className="button button--primary" type="submit">
-              Guardar ajustes
-            </button>
-          ) : null}
-          </form>
         </div>
       </div>
     </details>
+  );
+}
+
+function BudgetMiniForm({
+  canEdit,
+  onSave,
+  product,
+  productsById,
+}: {
+  canEdit: boolean;
+  onSave: (input: UpdateProductCostingInput) => void;
+  product: AppProduct;
+  productsById: Record<string, AppProduct>;
+}) {
+  const [laborHours, setLaborHours] = useState(product.laborHours);
+  const [laborHourlyRateArs, setLaborHourlyRateArs] = useState(
+    product.laborHourlyRateArs,
+  );
+  const [targetMarginPercent, setTargetMarginPercent] = useState(
+    product.targetMarginPercent,
+  );
+  const [salePriceArs, setSalePriceArs] = useState(product.salePriceArs);
+
+  useEffect(() => {
+    setLaborHours(product.laborHours);
+    setLaborHourlyRateArs(product.laborHourlyRateArs);
+    setTargetMarginPercent(product.targetMarginPercent);
+    setSalePriceArs(product.salePriceArs);
+  }, [product]);
+
+  const cost =
+    calculateProductMaterialsCost(product, productsById) +
+    calculateProductLaborCost(product);
+  const suggestedPrice = calculateSuggestedPrice(cost, targetMarginPercent);
+  const marginArs = salePriceArs - cost;
+  const marginPercent = calculateMarginPercent(salePriceArs, cost);
+
+  return (
+    <form
+      className="budget-mini"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({
+          productId: product.id,
+          laborHours,
+          laborHourlyRateArs,
+          targetMarginPercent,
+          salePriceArs,
+        });
+      }}
+    >
+      <div className="budget-mini__grid">
+        <label>
+          <span>Horas MO</span>
+          <input
+            disabled={!canEdit}
+            min="0"
+            onChange={(event) => setLaborHours(Number(event.target.value))}
+            step="0.1"
+            type="number"
+            value={laborHours}
+          />
+        </label>
+        <label>
+          <span>Valor hora</span>
+          <input
+            disabled={!canEdit}
+            min="0"
+            onChange={(event) => setLaborHourlyRateArs(Number(event.target.value))}
+            type="number"
+            value={laborHourlyRateArs}
+          />
+        </label>
+        <label>
+          <span>Margen %</span>
+          <input
+            disabled={!canEdit}
+            min="0"
+            onChange={(event) => setTargetMarginPercent(Number(event.target.value))}
+            type="number"
+            value={targetMarginPercent}
+          />
+        </label>
+        <label>
+          <span>Precio venta</span>
+          <input
+            disabled={!canEdit}
+            min="0"
+            onChange={(event) => setSalePriceArs(Number(event.target.value))}
+            type="number"
+            value={salePriceArs}
+          />
+        </label>
+        <div className="budget-mini__readout">
+          <span>Sugerido {formatDetailedCurrency(suggestedPrice, "ARS")}</span>
+          <strong>
+            Margen {marginPercent.toFixed(1)}% ({formatDetailedCurrency(marginArs, "ARS")})
+          </strong>
+        </div>
+        {canEdit ? (
+          <button className="button button--table" type="submit">
+            Guardar
+          </button>
+        ) : null}
+      </div>
+    </form>
   );
 }
 
@@ -2636,6 +2651,31 @@ function calculateAggregateLaborCost(
   return (
     calculateProductLaborCost(product) +
     calculateSubcomponentsLaborCost(product, productsById, visited)
+  );
+}
+
+function calculateAggregateSalePrice(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  if (visited.has(product.id)) {
+    return 0;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(product.id);
+
+  return (
+    product.salePriceArs +
+    (product.subcomponentProductIds ?? []).reduce((sum, productId) => {
+      const child = productsById[productId];
+      if (!child) {
+        return sum;
+      }
+
+      return sum + calculateAggregateSalePrice(child, productsById, nextVisited);
+    }, 0)
   );
 }
 

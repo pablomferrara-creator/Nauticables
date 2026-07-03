@@ -395,6 +395,44 @@ body {
   padding: 0 0.9rem 0.9rem;
 }
 
+.budget-mini {
+  padding: 0 0.9rem 0.7rem;
+}
+
+.budget-mini__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(8rem, 1fr)) minmax(12rem, 1.2fr) auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.budget-mini__grid label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.budget-mini__grid span {
+  color: #4c6666;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.budget-mini__grid input {
+  min-height: 2.1rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.budget-mini__readout {
+  display: grid;
+  gap: 0.15rem;
+  color: #426262;
+  font-size: 0.84rem;
+}
+
+.budget-mini__readout strong {
+  color: #143434;
+}
+
 .stats-grid {
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }

@@ -1575,7 +1575,7 @@ const seedState: AppState = {
       code: "E21SS",
       name: "Eclipse 21SS",
       kind: "completo",
-      salePriceArs: 130378.45,
+      salePriceArs: 119332.6,
       family: "Arcoiris",
       laborHours: 3.5,
       laborHourlyRateArs: 4500,
