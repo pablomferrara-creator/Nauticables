@@ -1620,21 +1620,19 @@ function BudgetMiniForm({
   const [targetMarginPercent, setTargetMarginPercent] = useState(
     product.targetMarginPercent,
   );
-  const [salePriceArs, setSalePriceArs] = useState(product.salePriceArs);
 
   useEffect(() => {
     setLaborHours(product.laborHours);
     setLaborHourlyRateArs(product.laborHourlyRateArs);
     setTargetMarginPercent(product.targetMarginPercent);
-    setSalePriceArs(product.salePriceArs);
   }, [product]);
 
   const cost =
     calculateProductMaterialsCost(product, productsById) +
     calculateProductLaborCost(product);
-  const suggestedPrice = calculateSuggestedPrice(cost, targetMarginPercent);
-  const marginArs = salePriceArs - cost;
-  const marginPercent = calculateMarginPercent(salePriceArs, cost);
+  const calculatedSalePrice = calculateSuggestedPrice(cost, targetMarginPercent);
+  const marginArs = calculatedSalePrice - cost;
+  const marginPercent = calculateMarginPercent(calculatedSalePrice, cost);
 
   return (
     <form
@@ -1646,7 +1644,7 @@ function BudgetMiniForm({
           laborHours,
           laborHourlyRateArs,
           targetMarginPercent,
-          salePriceArs,
+          salePriceArs: calculatedSalePrice,
         });
       }}
     >
@@ -1685,15 +1683,14 @@ function BudgetMiniForm({
         <label>
           <span>Precio venta</span>
           <input
-            disabled={!canEdit}
-            min="0"
-            onChange={(event) => setSalePriceArs(Number(event.target.value))}
-            type="number"
-            value={salePriceArs}
+            disabled
+            readOnly
+            type="text"
+            value={formatRoundedNumber(calculatedSalePrice)}
           />
         </label>
         <div className="budget-mini__readout">
-          <span>Sugerido {formatDetailedCurrency(suggestedPrice, "ARS")}</span>
+          <span>Redondeado al siguiente multiplo de 1000</span>
           <strong>
             Margen {marginPercent.toFixed(1)}% ({formatDetailedCurrency(marginArs, "ARS")})
           </strong>
@@ -2758,7 +2755,7 @@ function calculateProductTotalCost(
 }
 
 function calculateSuggestedPrice(totalCost: number, marginPercent: number) {
-  return totalCost * (1 + marginPercent / 100);
+  return roundUpToThousand(totalCost * (1 + marginPercent / 100));
 }
 
 function calculateMarginPercent(salePrice: number, totalCost: number) {
@@ -2767,6 +2764,14 @@ function calculateMarginPercent(salePrice: number, totalCost: number) {
   }
 
   return ((salePrice - totalCost) / salePrice) * 100;
+}
+
+function roundUpToThousand(value: number) {
+  if (value <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(value / 1000) * 1000;
 }
 
 function latestIncreasePercent(material: AppMaterial) {
@@ -2893,6 +2898,12 @@ function formatDetailedCurrency(amount: number, currency: "ARS" | "USD") {
     currency,
     minimumFractionDigits: 1,
     maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatRoundedNumber(amount: number) {
+  return new Intl.NumberFormat("es-AR", {
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
