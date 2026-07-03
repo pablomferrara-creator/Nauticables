@@ -1457,7 +1457,7 @@ const seedState: AppState = {
     {
       id: "pr-e21ss-relojes",
       code: "E21SS-REL",
-      name: "Eclipse 21SS Relojes",
+      name: "Mazo Relojes",
       kind: "subcable",
       salePriceArs: 11045.85,
       family: "Arcoiris",

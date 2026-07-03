@@ -1401,118 +1401,151 @@ function ProductCostCard({
   const marginArs = Math.max(0, salePriceArs - totalCost);
 
   return (
-    <article className="card">
-      <div className="card__heading">
-        <div className="card__row">
+    <details className="product-cascade" open>
+      <summary className="product-cascade__summary">
+        <div className="product-cascade__title">
           <span className="pill">
             {product.kind === "completo" ? "Completo" : "Subcable"}
           </span>
           <strong>{product.code}</strong>
+          <h3>{product.name}</h3>
+          <span>{product.family}</span>
         </div>
-        <h3>{product.name}</h3>
-        <p>{product.family}</p>
-      </div>
+        <div className="product-cascade__metrics">
+          <span>Materiales {arsCurrency.format(materialsCost)}</span>
+          <span>Subcomp. {arsCurrency.format(subcomponentsCost)}</span>
+          <strong>Total {arsCurrency.format(totalCost)}</strong>
+        </div>
+      </summary>
 
-      <div className="stats-grid stats-grid--compact">
-        <StatCard
-          label="Materiales"
-          value={arsCurrency.format(materialsCost)}
-          hint={`${product.recipeItems.length} items cargados`}
-        />
-        <StatCard
-          label="Subcomponentes"
-          value={arsCurrency.format(subcomponentsCost)}
-          hint={`${product.subcomponentProductIds?.length ?? 0} asociados`}
-        />
-        <StatCard
-          label="MO estandar"
-          value={arsCurrency.format(laborCost)}
-          hint={`${laborHours.toFixed(2)} h x ${arsCurrency.format(laborHourlyRateArs)}`}
-        />
-        <StatCard
-          label="Costo total"
-          value={arsCurrency.format(totalCost)}
-          hint="Base para presupuesto"
-        />
-        <StatCard
-          label="Precio sugerido"
-          value={arsCurrency.format(suggestedPrice)}
-          hint={`${targetMarginPercent}% de margen objetivo`}
-        />
-      </div>
-
-      <div className="stack">
-        <div className="table-shell">
-          <table className="materials-table product-detail-table">
-            <thead>
-              <tr>
-                <th>Material</th>
-                <th>Cantidad</th>
-                <th>Unidad</th>
-                <th>Proveedor</th>
-                <th>Unitario</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {product.recipeItems.map((item) => (
-                <tr key={item.id}>
-                  <td className="materials-table__name">{item.name}</td>
-                  <td>{item.quantity}</td>
-                  <td>{item.unit}</td>
-                  <td>{item.supplier || "-"}</td>
-                  <td>{formatDetailedCurrency(item.unitCostArs, "ARS")}</td>
-                  <td>
-                    {formatDetailedCurrency(item.quantity * item.unitCostArs, "ARS")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="product-cascade__content">
+        <div className="stats-grid stats-grid--compact">
+          <StatCard
+            label="Materiales"
+            value={arsCurrency.format(materialsCost)}
+            hint={`${product.recipeItems.length} items cargados`}
+          />
+          <StatCard
+            label="Subcomponentes"
+            value={arsCurrency.format(subcomponentsCost)}
+            hint={`${product.subcomponentProductIds?.length ?? 0} asociados`}
+          />
+          <StatCard
+            label="MO estandar"
+            value={arsCurrency.format(laborCost)}
+            hint={`${laborHours.toFixed(2)} h x ${arsCurrency.format(laborHourlyRateArs)}`}
+          />
+          <StatCard
+            label="Costo total"
+            value={arsCurrency.format(totalCost)}
+            hint="Base para presupuesto"
+          />
+          <StatCard
+            label="Precio sugerido"
+            value={arsCurrency.format(suggestedPrice)}
+            hint={`${targetMarginPercent}% de margen objetivo`}
+          />
         </div>
 
-        {(product.subcomponentProductIds?.length ?? 0) > 0 ? (
+        <details className="cascade-block" open>
+          <summary className="cascade-block__summary">
+            <strong>Mazo principal</strong>
+            <span>
+              {product.recipeItems.length} insumos -{" "}
+              {formatDetailedCurrency(materialsCost, "ARS")}
+            </span>
+          </summary>
           <div className="table-shell">
             <table className="materials-table product-detail-table">
               <thead>
                 <tr>
-                  <th>Subcomponente</th>
-                  <th>Horas MO</th>
-                  <th>Materiales</th>
-                  <th>Total</th>
+                  <th>Material</th>
+                  <th>Cantidad</th>
+                  <th>Unidad</th>
+                  <th>Proveedor</th>
+                  <th>Unitario</th>
+                  <th>Subtotal</th>
                 </tr>
               </thead>
               <tbody>
-                {product.subcomponentProductIds?.map((productId) => {
-                  const child = productsById[productId];
-                  if (!child) {
-                    return null;
-                  }
-
-                  const childMaterials = calculateProductMaterialsCost(
-                    child,
-                    productsById,
-                  );
-                  const childTotal = calculateProductTotalCost(
-                    child,
-                    productsById,
-                  );
-
-                  return (
-                    <tr key={productId}>
-                      <td className="materials-table__name">
-                        {child.code} - {child.name}
-                      </td>
-                      <td>{child.laborHours.toFixed(1)} hs</td>
-                      <td>{formatDetailedCurrency(childMaterials, "ARS")}</td>
-                      <td>{formatDetailedCurrency(childTotal, "ARS")}</td>
-                    </tr>
-                  );
-                })}
+                {product.recipeItems.map((item) => (
+                  <tr key={item.id}>
+                    <td className="materials-table__name">{item.name}</td>
+                    <td>{item.quantity}</td>
+                    <td>{item.unit}</td>
+                    <td>{item.supplier || "-"}</td>
+                    <td>{formatDetailedCurrency(item.unitCostArs, "ARS")}</td>
+                    <td>
+                      {formatDetailedCurrency(
+                        item.quantity * item.unitCostArs,
+                        "ARS",
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        ) : null}
+        </details>
+
+        {product.subcomponentProductIds?.map((productId) => {
+          const child = productsById[productId];
+          if (!child) {
+            return null;
+          }
+
+          const childMaterials = calculateProductMaterialsCost(child, productsById);
+          const childLabor = calculateProductLaborCost(child);
+          const childTotal = calculateProductTotalCost(child, productsById);
+
+          return (
+            <details key={productId} className="cascade-block" open>
+              <summary className="cascade-block__summary">
+                <strong>{child.name}</strong>
+                <span>
+                  {child.recipeItems.length} insumos -{" "}
+                  {formatDetailedCurrency(childTotal, "ARS")}
+                </span>
+              </summary>
+              <div className="cascade-block__meta">
+                <span>Materiales {formatDetailedCurrency(childMaterials, "ARS")}</span>
+                <span>MO {formatDetailedCurrency(childLabor, "ARS")}</span>
+                <strong>Total {formatDetailedCurrency(childTotal, "ARS")}</strong>
+              </div>
+              <div className="table-shell">
+                <table className="materials-table product-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Material</th>
+                      <th>Cantidad</th>
+                      <th>Unidad</th>
+                      <th>Proveedor</th>
+                      <th>Unitario</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {child.recipeItems.map((item) => (
+                      <tr key={item.id}>
+                        <td className="materials-table__name">{item.name}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td>{item.supplier || "-"}</td>
+                        <td>{formatDetailedCurrency(item.unitCostArs, "ARS")}</td>
+                        <td>
+                          {formatDetailedCurrency(
+                            item.quantity * item.unitCostArs,
+                            "ARS",
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          );
+        })}
 
         <div className="split-grid split-grid--wide">
           <div className="chips">
@@ -1619,7 +1652,7 @@ function ProductCostCard({
           </form>
         </div>
       </div>
-    </article>
+    </details>
   );
 }
 
