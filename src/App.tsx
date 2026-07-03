@@ -1304,7 +1304,8 @@ function ProductsPanel({
 }) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const filteredProducts = products.filter((product) => {
+  const workingProducts = products.filter((product) => product.code === "E21SS");
+  const filteredProducts = workingProducts.filter((product) => {
     const haystack =
       `${product.code} ${product.name} ${product.family}`.toLowerCase();
     return haystack.includes(deferredSearch.trim().toLowerCase());
@@ -1315,13 +1316,13 @@ function ProductsPanel({
       <div className="panel__header">
         <div>
           <span className="section-kicker">Modelos</span>
-          <h2>Costos, MO y precio sugerido por cada cable</h2>
+          <h2>Trabajo focalizado sobre E21SS</h2>
         </div>
         <label className="search">
           <span>Buscar</span>
           <input
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="K180, V180, ficha..."
+            placeholder="E21SS"
             value={search}
           />
         </label>
