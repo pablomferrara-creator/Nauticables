@@ -1393,12 +1393,15 @@ function ProductCostCard({
     setSalePriceArs(product.salePriceArs);
   }, [product]);
 
-  const materialsCost = calculateProductMaterialsCost(product, productsById);
-  const laborCost = laborHours * laborHourlyRateArs;
+  const directMaterialsCost = calculateProductMaterialsCost(product, productsById);
+  const directLaborCost = laborHours * laborHourlyRateArs;
+  const totalMaterialsCost = calculateAggregateMaterialsCost(product, productsById);
+  const totalLaborCost = calculateAggregateLaborCost(product, productsById);
   const subcomponentsCost = calculateSubcomponentsCost(product, productsById);
-  const totalCost = materialsCost + laborCost + subcomponentsCost;
+  const totalCost = totalMaterialsCost + totalLaborCost;
   const suggestedPrice = calculateSuggestedPrice(totalCost, targetMarginPercent);
-  const marginArs = Math.max(0, salePriceArs - totalCost);
+  const marginArs = salePriceArs - totalCost;
+  const marginPercent = calculateMarginPercent(salePriceArs, totalCost);
 
   return (
     <details className="product-cascade" open>
@@ -1412,8 +1415,8 @@ function ProductCostCard({
           <span>{product.family}</span>
         </div>
         <div className="product-cascade__metrics">
-          <span>Materiales {arsCurrency.format(materialsCost)}</span>
-          <span>Subcomp. {arsCurrency.format(subcomponentsCost)}</span>
+          <span>Materiales {arsCurrency.format(totalMaterialsCost)}</span>
+          <span>MO {arsCurrency.format(totalLaborCost)}</span>
           <strong>Total {arsCurrency.format(totalCost)}</strong>
         </div>
       </summary>
@@ -1421,29 +1424,29 @@ function ProductCostCard({
       <div className="product-cascade__content">
         <div className="stats-grid stats-grid--compact">
           <StatCard
-            label="Materiales"
-            value={arsCurrency.format(materialsCost)}
-            hint={`${product.recipeItems.length} items cargados`}
+            label="Total materiales"
+            value={arsCurrency.format(totalMaterialsCost)}
+            hint="Mazo principal + relojes"
           />
           <StatCard
-            label="Subcomponentes"
-            value={arsCurrency.format(subcomponentsCost)}
-            hint={`${product.subcomponentProductIds?.length ?? 0} asociados`}
-          />
-          <StatCard
-            label="MO estandar"
-            value={arsCurrency.format(laborCost)}
-            hint={`${laborHours.toFixed(2)} h x ${arsCurrency.format(laborHourlyRateArs)}`}
+            label="Total MO"
+            value={arsCurrency.format(totalLaborCost)}
+            hint="Suma de todos los subcomponentes"
           />
           <StatCard
             label="Costo total"
             value={arsCurrency.format(totalCost)}
-            hint="Base para presupuesto"
+            hint="Materiales + MO del conjunto"
           />
           <StatCard
-            label="Precio sugerido"
-            value={arsCurrency.format(suggestedPrice)}
-            hint={`${targetMarginPercent}% de margen objetivo`}
+            label="Precio de venta"
+            value={arsCurrency.format(salePriceArs)}
+            hint="Valor actual del mazo completo"
+          />
+          <StatCard
+            label="Margen ganancia"
+            value={`${marginPercent.toFixed(1)}%`}
+            hint={formatDetailedCurrency(marginArs, "ARS")}
           />
         </div>
 
@@ -1452,9 +1455,33 @@ function ProductCostCard({
             <strong>Mazo principal</strong>
             <span>
               {product.recipeItems.length} insumos -{" "}
-              {formatDetailedCurrency(materialsCost, "ARS")}
+              {formatDetailedCurrency(
+                directMaterialsCost + directLaborCost,
+                "ARS",
+              )}
             </span>
           </summary>
+          <div className="cascade-block__meta">
+            <span>
+              Materiales {formatDetailedCurrency(directMaterialsCost, "ARS")}
+            </span>
+            <span>MO {formatDetailedCurrency(directLaborCost, "ARS")}</span>
+            <span>
+              Precio venta{" "}
+              {formatDetailedCurrency(
+                product.salePriceArs - subcomponentsCost,
+                "ARS",
+              )}
+            </span>
+            <strong>
+              Margen{" "}
+              {calculateMarginPercent(
+                product.salePriceArs - subcomponentsCost,
+                directMaterialsCost + directLaborCost,
+              ).toFixed(1)}
+              %
+            </strong>
+          </div>
           <div className="table-shell">
             <table className="materials-table product-detail-table">
               <thead>
@@ -1494,9 +1521,10 @@ function ProductCostCard({
             return null;
           }
 
-          const childMaterials = calculateProductMaterialsCost(child, productsById);
-          const childLabor = calculateProductLaborCost(child);
+          const childMaterials = calculateAggregateMaterialsCost(child, productsById);
+          const childLabor = calculateAggregateLaborCost(child, productsById);
           const childTotal = calculateProductTotalCost(child, productsById);
+          const childMargin = child.salePriceArs - childTotal;
 
           return (
             <details key={productId} className="cascade-block" open>
@@ -1510,7 +1538,14 @@ function ProductCostCard({
               <div className="cascade-block__meta">
                 <span>Materiales {formatDetailedCurrency(childMaterials, "ARS")}</span>
                 <span>MO {formatDetailedCurrency(childLabor, "ARS")}</span>
+                <span>
+                  Precio venta {formatDetailedCurrency(child.salePriceArs, "ARS")}
+                </span>
                 <strong>Total {formatDetailedCurrency(childTotal, "ARS")}</strong>
+                <strong>
+                  Margen {calculateMarginPercent(child.salePriceArs, childTotal).toFixed(1)}%
+                  {" "}({formatDetailedCurrency(childMargin, "ARS")})
+                </strong>
               </div>
               <div className="table-shell">
                 <table className="materials-table product-detail-table">
@@ -1640,7 +1675,9 @@ function ProductCostCard({
             </div>
             <div>
               <span>Margen bruto actual</span>
-              <strong>{arsCurrency.format(marginArs)}</strong>
+              <strong>
+                {arsCurrency.format(marginArs)} / {marginPercent.toFixed(1)}%
+              </strong>
             </div>
           </div>
 
@@ -2576,8 +2613,74 @@ function calculateProductMaterialsCost(
   );
 }
 
+function calculateAggregateMaterialsCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  return (
+    calculateProductMaterialsCost(product, productsById, visited) +
+    calculateSubcomponentsMaterialsCost(product, productsById, visited)
+  );
+}
+
 function calculateProductLaborCost(product: AppProduct) {
   return product.laborHours * product.laborHourlyRateArs;
+}
+
+function calculateAggregateLaborCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  return (
+    calculateProductLaborCost(product) +
+    calculateSubcomponentsLaborCost(product, productsById, visited)
+  );
+}
+
+function calculateSubcomponentsMaterialsCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  if (visited.has(product.id)) {
+    return 0;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(product.id);
+
+  return (product.subcomponentProductIds ?? []).reduce((sum, productId) => {
+    const child = productsById[productId];
+    if (!child) {
+      return sum;
+    }
+
+    return sum + calculateAggregateMaterialsCost(child, productsById, nextVisited);
+  }, 0);
+}
+
+function calculateSubcomponentsLaborCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  if (visited.has(product.id)) {
+    return 0;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(product.id);
+
+  return (product.subcomponentProductIds ?? []).reduce((sum, productId) => {
+    const child = productsById[productId];
+    if (!child) {
+      return sum;
+    }
+
+    return sum + calculateAggregateLaborCost(child, productsById, nextVisited);
+  }, 0);
 }
 
 function calculateSubcomponentsCost(
@@ -2616,6 +2719,14 @@ function calculateProductTotalCost(
 
 function calculateSuggestedPrice(totalCost: number, marginPercent: number) {
   return totalCost * (1 + marginPercent / 100);
+}
+
+function calculateMarginPercent(salePrice: number, totalCost: number) {
+  if (salePrice <= 0) {
+    return 0;
+  }
+
+  return ((salePrice - totalCost) / salePrice) * 100;
 }
 
 function latestIncreasePercent(material: AppMaterial) {
