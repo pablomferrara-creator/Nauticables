@@ -56,6 +56,18 @@ export interface AppRecipeItem {
   unitCostArs: number;
 }
 
+export interface AppMaterial {
+  id: string;
+  name: string;
+  unit: string;
+  supplier: string;
+  category: string;
+  currency: CashCurrency;
+  currentCost: number;
+  previousCosts: number[];
+  notes: string;
+}
+
 export interface AppOrderItem {
   id: string;
   productId: string;
@@ -151,6 +163,7 @@ export interface AppPayable {
 export interface AppState {
   users: AppUser[];
   shipyards: AppShipyard[];
+  materials: AppMaterial[];
   products: AppProduct[];
   orders: AppOrder[];
   cashAccounts: AppCashAccount[];
@@ -296,6 +309,272 @@ const seedState: AppState = {
       contactName: "Nicolas",
       phone: "11 4029 6526",
       notes: "Buen candidato para comparar por temporada.",
+    },
+  ],
+  materials: [
+    {
+      id: "mat-relay-ku35n-12v-50a",
+      name: "relay ku-35n 12v 50a",
+      unit: "unidad",
+      supplier: "Autopartes Pilar",
+      category: "Electricos",
+      currency: "ARS",
+      currentCost: 1600,
+      previousCosts: [700, 390, 220, 190],
+      notes: "",
+    },
+    {
+      id: "mat-fusilera-6-fusibles-genrod",
+      name: "fusilera (6 fusibles) genrod",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 8177.76,
+      previousCosts: [7939.57, 7708.32, 7263.94, 6922.44],
+      notes: "",
+    },
+    {
+      id: "mat-fusibles-10a",
+      name: "Fusibles 10A",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 142,
+      previousCosts: [138, 129.92, 119.04, 112.25],
+      notes: "",
+    },
+    {
+      id: "mat-bornera-keland-t2-60",
+      name: "bornera keland t2-60 (60a 500v)",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Electricos",
+      currency: "ARS",
+      currentCost: 3945.16,
+      previousCosts: [3817.9, 3553, 3054.32, 2591.74],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-preaislado-ojal-rojo-a4",
+      name: "terminal preaislado ojal rojo A4",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 8.51,
+      previousCosts: [5.8, 4.01, 3.69, 3.47],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-ojal-525-10003s",
+      name: "terminal ojal 5,25mm. 10003/S",
+      unit: "unidad",
+      supplier: "Zeta",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 45,
+      previousCosts: [20, 17.6],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-ojal-975-26341s",
+      name: "terminal ojal 9,75mm. 26341/S",
+      unit: "unidad",
+      supplier: "Zeta",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 80,
+      previousCosts: [36, 32],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-preaislado-pala-hembra-roja-a16",
+      name: "terminal preaislado pala hembra roja A16",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 79.49,
+      previousCosts: [11.12, 6.46, 5.82, 5.17],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-preaislado-pala-hembra-azul-b18",
+      name: "terminal preasilado pala hembra azul B18",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 87.43,
+      previousCosts: [18.08, 5.67, 4.91, 4.51],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-preaislado-pala-hembra-amarillo-c15",
+      name: "terminal preaislado pala hembra amarillo C15",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 104.92,
+      previousCosts: [21.72, 8.55, 7.7, 6.83],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-pala-hembra-rojo-a18",
+      name: "terminal pala hembra rojo A18",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 28.5,
+      previousCosts: [27.13, 14.7, 10.65, 9.61],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-pala-hembra-azul-b20",
+      name: "terminal pala hembra azul B20",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 26.92,
+      previousCosts: [21.83, 13.37, 10.65, 9.61],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-pala-hembra-amarillo-c17",
+      name: "terminal pala hembra amarillo C17",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 36.18,
+      previousCosts: [29.91, 17.76, 14.16, 12.77],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-pala-macho-635",
+      name: "terminal pala macho 6,35 x 0,8 mm",
+      unit: "unidad",
+      supplier: "Zeta",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 75,
+      previousCosts: [60, 45],
+      notes: "",
+    },
+    {
+      id: "mat-terminal-pala-hembra-635",
+      name: "terminal pala hembra 6,35 x 0,8 mm",
+      unit: "unidad",
+      supplier: "Zeta",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 65,
+      previousCosts: [45, 21.26, 7.19],
+      notes: "",
+    },
+    {
+      id: "mat-empalme-pre-aislada-roja-a14",
+      name: "empalme pre aislada roja A14",
+      unit: "unidad",
+      supplier: "ML",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 102,
+      previousCosts: [97.33, 157.78, 45.7, 43.66],
+      notes: "",
+    },
+    {
+      id: "mat-empalme-pre-aislada-azul-b16",
+      name: "empalme pre aislada azul B16",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 111.58,
+      previousCosts: [106.42, 211, 63.56, 49.65],
+      notes: "",
+    },
+    {
+      id: "mat-empalme-pre-aislada-amarillo-c14",
+      name: "empalme pre aislada amarillo C14",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Terminales",
+      currency: "ARS",
+      currentCost: 238.78,
+      previousCosts: [189.9, 189.9, 164.95, 28.04],
+      notes: "",
+    },
+    {
+      id: "mat-ficha-8-vias-porta-pala-hembra",
+      name: "Ficha de 8 vias porta pala hembra",
+      unit: "unidad",
+      supplier: "Zeta",
+      category: "Conectores",
+      currency: "ARS",
+      currentCost: 94.75,
+      previousCosts: [120.19, 109.62, 84.38, 76.09],
+      notes: "",
+    },
+    {
+      id: "mat-cano-flex-1",
+      name: "caño flexible negro con corte 1\"",
+      unit: "metro",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 1150,
+      previousCosts: [1088.59, 1053.47, 962.52, 962.52],
+      notes: "",
+    },
+    {
+      id: "mat-cano-flex-34",
+      name: "caño flexible negro con corte 3/4\"",
+      unit: "metro",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 879.16,
+      previousCosts: [834.06, 807.16, 737.88, 737.88],
+      notes: "",
+    },
+    {
+      id: "mat-cano-flex-12",
+      name: "caño flexible negro con corte 1/2\"",
+      unit: "metro",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 697.26,
+      previousCosts: [663.73, 642.32, 585, 585],
+      notes: "",
+    },
+    {
+      id: "mat-cano-flex-38",
+      name: "caño flexible negro con corte 3/8\"",
+      unit: "metro",
+      supplier: "Janored",
+      category: "Proteccion",
+      currency: "ARS",
+      currentCost: 653.68,
+      previousCosts: [620.65, 600.63, 547.56, 526.5],
+      notes: "",
+    },
+    {
+      id: "mat-cinta-aisladora-negra-20m",
+      name: "cinta aisladora negra 20m",
+      unit: "unidad",
+      supplier: "Janored",
+      category: "Aislacion",
+      currency: "ARS",
+      currentCost: 2208,
+      previousCosts: [1950, 1725.73, 1656, 1644],
+      notes: "",
     },
   ],
   products: [
@@ -812,6 +1091,26 @@ function normalizeProducts(products: AppProduct[] | undefined) {
   });
 }
 
+function normalizeMaterials(materials: AppMaterial[] | undefined) {
+  const defaultsById = new Map(seedState.materials.map((material) => [material.id, material]));
+
+  return (materials ?? seedState.materials).map((material) => {
+    const defaultMaterial = defaultsById.get(material.id);
+
+    return {
+      id: material.id,
+      name: material.name,
+      unit: material.unit ?? defaultMaterial?.unit ?? "unidad",
+      supplier: material.supplier ?? defaultMaterial?.supplier ?? "",
+      category: material.category ?? defaultMaterial?.category ?? "General",
+      currency: material.currency ?? defaultMaterial?.currency ?? "ARS",
+      currentCost: material.currentCost ?? defaultMaterial?.currentCost ?? 0,
+      previousCosts: material.previousCosts ?? defaultMaterial?.previousCosts ?? [],
+      notes: material.notes ?? defaultMaterial?.notes ?? "",
+    };
+  });
+}
+
 function loadState(): AppState {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -823,6 +1122,7 @@ function loadState(): AppState {
     return {
       users: normalizeUsers(parsed.users),
       shipyards: parsed.shipyards ?? seedState.shipyards,
+      materials: normalizeMaterials(parsed.materials),
       products: normalizeProducts(parsed.products),
       orders: deriveOrders(parsed.orders ?? seedState.orders),
       cashAccounts: parsed.cashAccounts ?? seedState.cashAccounts,
@@ -848,6 +1148,7 @@ function parseRemoteState(data: DocumentData | undefined): SharedAppState | null
   return {
     users: normalizeUsers(candidate.users),
     shipyards: candidate.shipyards ?? seedState.shipyards,
+    materials: normalizeMaterials(candidate.materials),
     products: normalizeProducts(candidate.products),
     orders: deriveOrders(candidate.orders ?? seedState.orders),
     cashAccounts: candidate.cashAccounts ?? seedState.cashAccounts,
