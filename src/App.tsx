@@ -151,13 +151,10 @@ function App() {
         <div>
           <div className="topbar__eyebrow">Nauticables / espacio compartido</div>
           <h1>
-            {currentUser.role === "admin"
-              ? "Centro operativo"
-              : "Panel de produccion"}
+            {currentUser.role === "admin" ? "Panel general" : "Produccion"}
           </h1>
           <p>
-            Ya esta sincronizando con Firebase para que puedan trabajar desde
-            mas de un dispositivo con una misma base.
+            Base compartida sincronizada entre dispositivos.
           </p>
         </div>
         <div className="topbar__meta">
