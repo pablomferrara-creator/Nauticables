@@ -66,6 +66,8 @@ export interface AppMaterial {
   currentCost: number;
   previousCosts: number[];
   notes: string;
+  active?: boolean;
+  deleted?: boolean;
 }
 
 export interface AppOrderItem {
@@ -174,6 +176,15 @@ export interface AppState {
 
 type SharedAppState = AppState;
 
+function capitalizeFirst(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 export interface CreateOrderInput {
   shipyardId: string;
   orderedAt: string;
@@ -251,6 +262,16 @@ export interface UpdateProductCostingInput {
   laborHourlyRateArs: number;
   targetMarginPercent: number;
   salePriceArs: number;
+}
+
+export interface UpdateMaterialInput {
+  materialId: string;
+  name: string;
+  unit: string;
+  supplier: string;
+  category: string;
+  currentCost: number;
+  notes: string;
 }
 
 const seedState: AppState = {
@@ -1725,7 +1746,7 @@ function normalizeMaterials(materials: AppMaterial[] | undefined) {
 
     return {
       id: material.id,
-      name: material.name,
+      name: capitalizeFirst(material.name),
       unit: material.unit ?? defaultMaterial?.unit ?? "unidad",
       supplier: material.supplier ?? defaultMaterial?.supplier ?? "",
       category: material.category ?? defaultMaterial?.category ?? "General",
@@ -1733,6 +1754,8 @@ function normalizeMaterials(materials: AppMaterial[] | undefined) {
       currentCost: material.currentCost ?? defaultMaterial?.currentCost ?? 0,
       previousCosts: material.previousCosts ?? defaultMaterial?.previousCosts ?? [],
       notes: material.notes ?? defaultMaterial?.notes ?? "",
+      active: material.active ?? defaultMaterial?.active ?? true,
+      deleted: material.deleted ?? defaultMaterial?.deleted ?? false,
     };
   });
 
@@ -2278,6 +2301,49 @@ export function useAppState(
     }));
   }
 
+  function updateMaterial(input: UpdateMaterialInput) {
+    setState((current) => ({
+      ...current,
+      materials: current.materials.map((material) => {
+        if (material.id !== input.materialId) {
+          return material;
+        }
+
+        return {
+          ...material,
+          name: capitalizeFirst(input.name),
+          unit: input.unit.trim(),
+          supplier: input.supplier.trim(),
+          category: input.category.trim(),
+          currentCost: Math.max(0, input.currentCost),
+          notes: input.notes.trim(),
+        };
+      }),
+    }));
+  }
+
+  function toggleMaterialActive(materialId: string) {
+    setState((current) => ({
+      ...current,
+      materials: current.materials.map((material) =>
+        material.id === materialId
+          ? { ...material, active: !material.active, deleted: false }
+          : material,
+      ),
+    }));
+  }
+
+  function toggleMaterialDeleted(materialId: string) {
+    setState((current) => ({
+      ...current,
+      materials: current.materials.map((material) =>
+        material.id === materialId
+          ? { ...material, deleted: !material.deleted }
+          : material,
+      ),
+    }));
+  }
+
   const normalizedEmail = firebaseEmail?.trim().toLowerCase() ?? "";
   const currentUser =
     state.users.find(
@@ -2293,6 +2359,9 @@ export function useAppState(
     syncStatus,
     updateUserAccess,
     updateProductCosting,
+    updateMaterial,
+    toggleMaterialActive,
+    toggleMaterialDeleted,
     createOrder,
     recordProduction,
     recordDelivery,

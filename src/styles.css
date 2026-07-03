@@ -157,6 +157,19 @@ body {
   background: rgba(214, 236, 233, 0.9);
 }
 
+.button--table {
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.7rem;
+  color: #0b4848;
+  background: rgba(214, 236, 233, 0.9);
+}
+
+.button--table-danger {
+  color: #6c2323;
+  background: rgba(243, 196, 196, 0.9);
+}
+
 .button:hover,
 .login-card:hover,
 .bottom-nav__item:hover {
@@ -280,6 +293,27 @@ body {
   white-space: normal;
   color: #143434;
   font-weight: 600;
+}
+
+.materials-table__row--inactive {
+  opacity: 0.7;
+}
+
+.materials-table__row--edit td {
+  background: rgba(245, 248, 247, 0.96);
+}
+
+.materials-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 2.4fr) repeat(4, minmax(8rem, 1fr)) auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .stats-grid {

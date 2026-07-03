@@ -1,4 +1,5 @@
 import {
+  Fragment,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -24,6 +25,7 @@ import {
   type ProductionInput,
   type SettlePayableInput,
   type SettleReceivableInput,
+  type UpdateMaterialInput,
   type UpdateProductCostingInput,
   type UpdateUserAccessInput,
 } from "./data/appStore";
@@ -74,6 +76,9 @@ function App() {
     syncStatus,
     updateUserAccess,
     updateProductCosting,
+    updateMaterial,
+    toggleMaterialActive,
+    toggleMaterialDeleted,
     createOrder,
     recordProduction,
     recordDelivery,
@@ -242,7 +247,12 @@ function App() {
         ) : null}
 
         {activeTab === "materiales" && currentUser.role === "admin" ? (
-          <MaterialsPanel materials={state.materials} />
+          <MaterialsPanel
+            materials={state.materials}
+            onToggleMaterialActive={toggleMaterialActive}
+            onToggleMaterialDeleted={toggleMaterialDeleted}
+            onUpdateMaterial={updateMaterial}
+          />
         ) : null}
 
         {activeTab === "astilleros" && currentUser.role === "admin" ? (
@@ -1580,10 +1590,30 @@ function AccessPanel({
   );
 }
 
-function MaterialsPanel({ materials }: { materials: AppMaterial[] }) {
+function MaterialsPanel({
+  materials,
+  onToggleMaterialActive,
+  onToggleMaterialDeleted,
+  onUpdateMaterial,
+}: {
+  materials: AppMaterial[];
+  onToggleMaterialActive: (materialId: string) => void;
+  onToggleMaterialDeleted: (materialId: string) => void;
+  onUpdateMaterial: (input: UpdateMaterialInput) => void;
+}) {
   const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<UpdateMaterialInput | null>(null);
   const deferredSearch = useDeferredValue(search);
   const filteredMaterials = materials.filter((material) => {
+    if (!showDeleted && material.deleted) {
+      return false;
+    }
+    if (!showInactive && !material.active && !material.deleted) {
+      return false;
+    }
     const haystack =
       `${material.name} ${material.supplier} ${material.category}`.toLowerCase();
     return haystack.includes(deferredSearch.trim().toLowerCase());
@@ -1615,6 +1645,25 @@ function MaterialsPanel({ materials }: { materials: AppMaterial[] }) {
         </label>
       </div>
 
+      <div className="inline-actions">
+        <label className="checkbox-row">
+          <input
+            checked={showInactive}
+            onChange={(event) => setShowInactive(event.target.checked)}
+            type="checkbox"
+          />
+          <span>Ver inactivos</span>
+        </label>
+        <label className="checkbox-row">
+          <input
+            checked={showDeleted}
+            onChange={(event) => setShowDeleted(event.target.checked)}
+            type="checkbox"
+          />
+          <span>Ver eliminados</span>
+        </label>
+      </div>
+
       <div className="materials-summary">
         <span>
           <strong>{filteredMaterials.length}</strong> materiales
@@ -1642,37 +1691,183 @@ function MaterialsPanel({ materials }: { materials: AppMaterial[] }) {
               <th>Ant. 1</th>
               <th>Ant. 2</th>
               <th>Aumento</th>
+              <th>Estado</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filteredMaterials.map((material) => (
-              <tr key={material.id}>
-                <td className="materials-table__name">{material.name}</td>
-                <td>{material.unit}</td>
-                <td>{material.category}</td>
-                <td>{material.supplier || "-"}</td>
-                <td>{formatCurrency(material.currentCost, material.currency)}</td>
-                <td>
-                  {material.previousCosts[0]
-                    ? formatCurrency(material.previousCosts[0], material.currency)
-                    : "-"}
-                </td>
-                <td>
-                  {material.previousCosts[1]
-                    ? formatCurrency(material.previousCosts[1], material.currency)
-                    : "-"}
-                </td>
-                <td
-                  className={
-                    latestIncreasePercent(material) >= 0
-                      ? "text-negative"
-                      : "text-positive"
-                  }
-                >
-                  {latestIncreasePercent(material).toFixed(1)}%
-                </td>
-              </tr>
-            ))}
+            {filteredMaterials.map((material) => {
+              const isEditing = editingId === material.id && draft;
+
+              return (
+                <Fragment key={material.id}>
+                  <tr
+                    className={!material.active ? "materials-table__row--inactive" : undefined}
+                  >
+                    <td className="materials-table__name">{material.name}</td>
+                    <td>{material.unit}</td>
+                    <td>{material.category}</td>
+                    <td>{material.supplier || "-"}</td>
+                    <td>{formatDetailedCurrency(material.currentCost, material.currency)}</td>
+                    <td>
+                      {material.previousCosts[0]
+                        ? formatDetailedCurrency(
+                            material.previousCosts[0],
+                            material.currency,
+                          )
+                        : "-"}
+                    </td>
+                    <td>
+                      {material.previousCosts[1]
+                        ? formatDetailedCurrency(
+                            material.previousCosts[1],
+                            material.currency,
+                          )
+                        : "-"}
+                    </td>
+                    <td
+                      className={
+                        latestIncreasePercent(material) >= 0
+                          ? "text-negative"
+                          : "text-positive"
+                      }
+                    >
+                      {latestIncreasePercent(material).toFixed(1)}%
+                    </td>
+                    <td>
+                      {material.deleted
+                        ? "Eliminado"
+                        : material.active
+                          ? "Activo"
+                          : "Inactivo"}
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <button
+                          className="button button--table"
+                          onClick={() => {
+                            setEditingId(material.id);
+                            setDraft({
+                              materialId: material.id,
+                              name: material.name,
+                              unit: material.unit,
+                              supplier: material.supplier,
+                              category: material.category,
+                              currentCost: material.currentCost,
+                              notes: material.notes,
+                            });
+                          }}
+                          type="button"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="button button--table"
+                          onClick={() => onToggleMaterialActive(material.id)}
+                          type="button"
+                        >
+                          {material.active ? "Desactivar" : "Activar"}
+                        </button>
+                        <button
+                          className="button button--table button--table-danger"
+                          onClick={() => onToggleMaterialDeleted(material.id)}
+                          type="button"
+                        >
+                          {material.deleted ? "Restaurar" : "Eliminar"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isEditing ? (
+                    <tr className="materials-table__row--edit">
+                      <td colSpan={10}>
+                        <form
+                          className="materials-edit-grid"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            onUpdateMaterial(draft);
+                            setEditingId(null);
+                            setDraft(null);
+                          }}
+                        >
+                          <input
+                            onChange={(event) =>
+                              setDraft((current) =>
+                                current
+                                  ? { ...current, name: event.target.value }
+                                  : current,
+                              )
+                            }
+                            value={draft.name}
+                          />
+                          <input
+                            onChange={(event) =>
+                              setDraft((current) =>
+                                current
+                                  ? { ...current, unit: event.target.value }
+                                  : current,
+                              )
+                            }
+                            value={draft.unit}
+                          />
+                          <input
+                            onChange={(event) =>
+                              setDraft((current) =>
+                                current
+                                  ? { ...current, category: event.target.value }
+                                  : current,
+                              )
+                            }
+                            value={draft.category}
+                          />
+                          <input
+                            onChange={(event) =>
+                              setDraft((current) =>
+                                current
+                                  ? { ...current, supplier: event.target.value }
+                                  : current,
+                              )
+                            }
+                            value={draft.supplier}
+                          />
+                          <input
+                            min="0"
+                            onChange={(event) =>
+                              setDraft((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      currentCost: Number(event.target.value),
+                                    }
+                                  : current,
+                              )
+                            }
+                            step="0.01"
+                            type="number"
+                            value={draft.currentCost}
+                          />
+                          <div className="table-actions">
+                            <button className="button button--table" type="submit">
+                              Guardar
+                            </button>
+                            <button
+                              className="button button--table"
+                              onClick={() => {
+                                setEditingId(null);
+                                setDraft(null);
+                              }}
+                              type="button"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -2388,6 +2583,15 @@ function formatCurrency(amount: number, currency: "ARS" | "USD") {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatDetailedCurrency(amount: number, currency: "ARS" | "USD") {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
