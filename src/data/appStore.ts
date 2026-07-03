@@ -2096,7 +2096,7 @@ function normalizeUsers(users: AppUser[] | undefined) {
 function normalizeProducts(products: AppProduct[] | undefined) {
   const defaultsById = new Map(seedState.products.map((product) => [product.id, product]));
 
-  return (products ?? seedState.products).map((product) => {
+  const normalizedCurrent = (products ?? seedState.products).map((product) => {
     const defaultProduct = defaultsById.get(product.id);
 
     return {
@@ -2117,6 +2117,13 @@ function normalizeProducts(products: AppProduct[] | undefined) {
         product.subcomponentProductIds ?? defaultProduct?.subcomponentProductIds ?? [],
     };
   });
+
+  const existingIds = new Set(normalizedCurrent.map((product) => product.id));
+  const missingDefaults = seedState.products.filter(
+    (product) => !existingIds.has(product.id),
+  );
+
+  return [...normalizedCurrent, ...missingDefaults];
 }
 
 function normalizeMaterials(materials: AppMaterial[] | undefined) {
