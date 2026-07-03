@@ -239,6 +239,7 @@ function App() {
             currentUser={currentUser}
             materials={state.materials}
             products={state.products}
+            productsById={productsById}
             onUpdateProductCosting={updateProductCosting}
           />
         ) : null}
@@ -1292,11 +1293,13 @@ function ProductsPanel({
   currentUser,
   materials,
   products,
+  productsById,
   onUpdateProductCosting,
 }: {
   currentUser: AppUser;
   materials: AppMaterial[];
   products: AppProduct[];
+  productsById: Record<string, AppProduct>;
   onUpdateProductCosting: (input: UpdateProductCostingInput) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -1354,6 +1357,7 @@ function ProductsPanel({
             canEdit={currentUser.role === "admin"}
             onSave={onUpdateProductCosting}
             product={product}
+            productsById={productsById}
           />
         ))}
       </div>
@@ -1365,10 +1369,12 @@ function ProductCostCard({
   canEdit,
   onSave,
   product,
+  productsById,
 }: {
   canEdit: boolean;
   onSave: (input: UpdateProductCostingInput) => void;
   product: AppProduct;
+  productsById: Record<string, AppProduct>;
 }) {
   const [laborHours, setLaborHours] = useState(product.laborHours);
   const [laborHourlyRateArs, setLaborHourlyRateArs] = useState(
@@ -1386,9 +1392,10 @@ function ProductCostCard({
     setSalePriceArs(product.salePriceArs);
   }, [product]);
 
-  const materialsCost = calculateProductMaterialsCost(product);
+  const materialsCost = calculateProductMaterialsCost(product, productsById);
   const laborCost = laborHours * laborHourlyRateArs;
-  const totalCost = materialsCost + laborCost;
+  const subcomponentsCost = calculateSubcomponentsCost(product, productsById);
+  const totalCost = materialsCost + laborCost + subcomponentsCost;
   const suggestedPrice = calculateSuggestedPrice(totalCost, targetMarginPercent);
   const marginArs = Math.max(0, salePriceArs - totalCost);
 
@@ -1412,6 +1419,11 @@ function ProductCostCard({
           hint={`${product.recipeItems.length} items cargados`}
         />
         <StatCard
+          label="Subcomponentes"
+          value={arsCurrency.format(subcomponentsCost)}
+          hint={`${product.subcomponentProductIds?.length ?? 0} asociados`}
+        />
+        <StatCard
           label="MO estandar"
           value={arsCurrency.format(laborCost)}
           hint={`${laborHours.toFixed(2)} h x ${arsCurrency.format(laborHourlyRateArs)}`}
@@ -1428,8 +1440,80 @@ function ProductCostCard({
         />
       </div>
 
-      <div className="split-grid split-grid--wide">
-        <div className="stack">
+      <div className="stack">
+        <div className="table-shell">
+          <table className="materials-table product-detail-table">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th>Cantidad</th>
+                <th>Unidad</th>
+                <th>Proveedor</th>
+                <th>Unitario</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {product.recipeItems.map((item) => (
+                <tr key={item.id}>
+                  <td className="materials-table__name">{item.name}</td>
+                  <td>{item.quantity}</td>
+                  <td>{item.unit}</td>
+                  <td>{item.supplier || "-"}</td>
+                  <td>{formatDetailedCurrency(item.unitCostArs, "ARS")}</td>
+                  <td>
+                    {formatDetailedCurrency(item.quantity * item.unitCostArs, "ARS")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {(product.subcomponentProductIds?.length ?? 0) > 0 ? (
+          <div className="table-shell">
+            <table className="materials-table product-detail-table">
+              <thead>
+                <tr>
+                  <th>Subcomponente</th>
+                  <th>Horas MO</th>
+                  <th>Materiales</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {product.subcomponentProductIds?.map((productId) => {
+                  const child = productsById[productId];
+                  if (!child) {
+                    return null;
+                  }
+
+                  const childMaterials = calculateProductMaterialsCost(
+                    child,
+                    productsById,
+                  );
+                  const childTotal = calculateProductTotalCost(
+                    child,
+                    productsById,
+                  );
+
+                  return (
+                    <tr key={productId}>
+                      <td className="materials-table__name">
+                        {child.code} - {child.name}
+                      </td>
+                      <td>{child.laborHours.toFixed(1)} hs</td>
+                      <td>{formatDetailedCurrency(childMaterials, "ARS")}</td>
+                      <td>{formatDetailedCurrency(childTotal, "ARS")}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        <div className="split-grid split-grid--wide">
           <div className="chips">
             {product.recipeSummary.map((component) => (
               <span key={component} className="chip">
@@ -1438,36 +1522,19 @@ function ProductCostCard({
             ))}
           </div>
 
-          <div className="detail-table">
-            {product.recipeItems.map((item) => (
-              <div key={item.id} className="detail-table__row">
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>
-                    {item.quantity} {item.unit} - {item.supplier}
-                  </span>
-                </div>
-                <strong>
-                  {arsCurrency.format(item.quantity * item.unitCostArs)}
-                </strong>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <form
-          className="card card--nested form-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSave({
-              productId: product.id,
-              laborHours,
-              laborHourlyRateArs,
-              targetMarginPercent,
-              salePriceArs,
-            });
-          }}
-        >
+          <form
+            className="card card--nested form-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSave({
+                productId: product.id,
+                laborHours,
+                laborHourlyRateArs,
+                targetMarginPercent,
+                salePriceArs,
+              });
+            }}
+          >
           <div className="card__heading">
             <h3>{canEdit ? "Ajustes de presupuesto" : "Resumen comercial"}</h3>
             <p>
@@ -1548,7 +1615,8 @@ function ProductCostCard({
               Guardar ajustes
             </button>
           ) : null}
-        </form>
+          </form>
+        </div>
       </div>
     </article>
   );
@@ -2456,7 +2524,18 @@ function pendingAmount(totalAmount: number, completedAmount: number) {
   return Math.max(0, totalAmount - completedAmount);
 }
 
-function calculateProductMaterialsCost(product: AppProduct) {
+function calculateProductMaterialsCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  if (visited.has(product.id)) {
+    return 0;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(product.id);
+
   return product.recipeItems.reduce(
     (sum, item) => sum + item.quantity * item.unitCostArs,
     0,
@@ -2467,8 +2546,38 @@ function calculateProductLaborCost(product: AppProduct) {
   return product.laborHours * product.laborHourlyRateArs;
 }
 
-function calculateProductTotalCost(product: AppProduct) {
-  return calculateProductMaterialsCost(product) + calculateProductLaborCost(product);
+function calculateSubcomponentsCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  if (visited.has(product.id)) {
+    return 0;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(product.id);
+
+  return (product.subcomponentProductIds ?? []).reduce((sum, productId) => {
+    const child = productsById[productId];
+    if (!child) {
+      return sum;
+    }
+
+    return sum + calculateProductTotalCost(child, productsById, nextVisited);
+  }, 0);
+}
+
+function calculateProductTotalCost(
+  product: AppProduct,
+  productsById: Record<string, AppProduct>,
+  visited = new Set<string>(),
+): number {
+  return (
+    calculateProductMaterialsCost(product, productsById, visited) +
+    calculateProductLaborCost(product) +
+    calculateSubcomponentsCost(product, productsById, visited)
+  );
 }
 
 function calculateSuggestedPrice(totalCost: number, marginPercent: number) {
@@ -2489,9 +2598,15 @@ function averageProductTotalCost(products: AppProduct[]) {
     return 0;
   }
 
+  const productsById = Object.fromEntries(
+    products.map((product) => [product.id, product]),
+  ) as Record<string, AppProduct>;
+
   return (
-    products.reduce((sum, product) => sum + calculateProductTotalCost(product), 0) /
-    products.length
+    products.reduce(
+      (sum, product) => sum + calculateProductTotalCost(product, productsById),
+      0,
+    ) / products.length
   );
 }
 
@@ -2500,12 +2615,16 @@ function averageSuggestedPrice(products: AppProduct[]) {
     return 0;
   }
 
+  const productsById = Object.fromEntries(
+    products.map((product) => [product.id, product]),
+  ) as Record<string, AppProduct>;
+
   return (
     products.reduce(
       (sum, product) =>
         sum +
         calculateSuggestedPrice(
-          calculateProductTotalCost(product),
+          calculateProductTotalCost(product, productsById),
           product.targetMarginPercent,
         ),
       0,
