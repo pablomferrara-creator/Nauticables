@@ -1595,6 +1595,8 @@ function MaterialsPanel({ materials }: { materials: AppMaterial[] }) {
           (sum, material) => sum + latestIncreasePercent(material),
           0,
         ) / filteredMaterials.length;
+  const categoryCount = new Set(filteredMaterials.map((m) => m.category)).size;
+  const supplierCount = new Set(filteredMaterials.map((m) => m.supplier)).size;
 
   return (
     <section className="panel">
@@ -1613,68 +1615,66 @@ function MaterialsPanel({ materials }: { materials: AppMaterial[] }) {
         </label>
       </div>
 
-      <div className="stats-grid">
-        <StatCard
-          label="Materiales cargados"
-          value={String(filteredMaterials.length)}
-          hint="Primer parcial del maestro real"
-        />
-        <StatCard
-          label="Categorias"
-          value={String(new Set(filteredMaterials.map((m) => m.category)).size)}
-          hint="Imputadas para ordenar mejor la base"
-        />
-        <StatCard
-          label="Proveedores"
-          value={String(new Set(filteredMaterials.map((m) => m.supplier)).size)}
-          hint="Concentracion actual de compras"
-        />
-        <StatCard
-          label="Aumento promedio"
-          value={`${avgVariation.toFixed(1)}%`}
-          hint="Comparado contra el precio anterior inmediato"
-        />
+      <div className="materials-summary">
+        <span>
+          <strong>{filteredMaterials.length}</strong> materiales
+        </span>
+        <span>
+          <strong>{categoryCount}</strong> categorias
+        </span>
+        <span>
+          <strong>{supplierCount}</strong> proveedores
+        </span>
+        <span>
+          aumento prom. <strong>{avgVariation.toFixed(1)}%</strong>
+        </span>
       </div>
 
-      <div className="stack">
-        {filteredMaterials.map((material) => (
-          <article key={material.id} className="card">
-            <div className="card__row">
-              <div>
-                <strong>{material.name}</strong>
-                <span>
-                  {material.category} - {material.supplier}
-                </span>
-              </div>
-              <span className="pill">{material.unit}</span>
-            </div>
-
-            <div className="stats-grid stats-grid--compact">
-              <StatCard
-                label="Costo actual"
-                value={formatCurrency(material.currentCost, material.currency)}
-                hint={`Compra por ${material.unit}`}
-              />
-              <StatCard
-                label="Ultimo aumento"
-                value={`${latestIncreasePercent(material).toFixed(1)}%`}
-                hint={
-                  material.previousCosts[0]
-                    ? `Vs ${formatCurrency(material.previousCosts[0], material.currency)}`
-                    : "Sin historico previo"
-                }
-              />
-            </div>
-
-            <div className="chips">
-              {material.previousCosts.map((cost, index) => (
-                <span key={`${material.id}-prev-${index}`} className="chip">
-                  Ant {index + 1}: {formatCurrency(cost, material.currency)}
-                </span>
-              ))}
-            </div>
-          </article>
-        ))}
+      <div className="table-shell">
+        <table className="materials-table">
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th>Unidad</th>
+              <th>Categoria</th>
+              <th>Proveedor</th>
+              <th>Actual</th>
+              <th>Ant. 1</th>
+              <th>Ant. 2</th>
+              <th>Aumento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredMaterials.map((material) => (
+              <tr key={material.id}>
+                <td className="materials-table__name">{material.name}</td>
+                <td>{material.unit}</td>
+                <td>{material.category}</td>
+                <td>{material.supplier || "-"}</td>
+                <td>{formatCurrency(material.currentCost, material.currency)}</td>
+                <td>
+                  {material.previousCosts[0]
+                    ? formatCurrency(material.previousCosts[0], material.currency)
+                    : "-"}
+                </td>
+                <td>
+                  {material.previousCosts[1]
+                    ? formatCurrency(material.previousCosts[1], material.currency)
+                    : "-"}
+                </td>
+                <td
+                  className={
+                    latestIncreasePercent(material) >= 0
+                      ? "text-negative"
+                      : "text-positive"
+                  }
+                >
+                  {latestIncreasePercent(material).toFixed(1)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
